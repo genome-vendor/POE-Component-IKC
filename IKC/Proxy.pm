@@ -1,9 +1,9 @@
-# $Id: Proxy.pm,v 1.9 2002/05/02 19:35:54 fil Exp $
+# $Id: Proxy.pm,v 1.10 2004/05/13 19:51:21 fil Exp $
 package POE::Component::IKC::Proxy;
 
 ##############################################################################
-# $Id: Proxy.pm,v 1.9 2002/05/02 19:35:54 fil Exp $
-# Copyright 1999,2002 Philip Gwyn.  All rights reserved.
+# $Id: Proxy.pm,v 1.10 2004/05/13 19:51:21 fil Exp $
+# Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -21,7 +21,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_proxy);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 
@@ -151,6 +151,9 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: Proxy.pm,v $
+Revision 1.10  2004/05/13 19:51:21  fil
+Moved to signal_handled
+
 Revision 1.9  2002/05/02 19:35:54  fil
 Updated Chanages.
 Merged alias listing for publish/subtract

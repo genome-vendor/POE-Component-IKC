@@ -1,10 +1,10 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.14 2002/05/02 19:35:54 fil Exp $
+# $Id: ClientLite.pm,v 1.15 2004/05/13 19:51:21 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2002 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 
@@ -617,6 +617,9 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: ClientLite.pm,v $
+Revision 1.15  2004/05/13 19:51:21  fil
+Moved to signal_handled
+
 Revision 1.14  2002/05/02 19:35:54  fil
 Updated Chanages.
 Merged alias listing for publish/subtract

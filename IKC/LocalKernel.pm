@@ -1,8 +1,8 @@
 package POE::Component::IKC::LocalKernel;
 
 ############################################################
-# $Id: LocalKernel.pm,v 1.5 2001/08/02 03:26:50 fil Exp $
-# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
+# $Id: LocalKernel.pm,v 1.6 2004/05/13 19:51:21 fil Exp $
+# Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -24,7 +24,7 @@ sub spawn
     POE::Component::IKC::Responder->spawn();
     POE::Session->create( 
         package_states=>[
-            $package=>[qw(_start _default shutdown send sig_INT)],
+            $package=>[qw(_start _default shutdown send sig_INT _stop)],
         ],
 #        heap=>{%params},
     );
@@ -38,7 +38,6 @@ sub _start
     $kernel->alias_set('-- Local Kernel IKC Channel --');
     
     $heap->{ref}=1;
-#    $kernel->call('IKC', 'register', $kernel->ID, $heap->{aliases});
 }
 
 #----------------------------------------------------
@@ -52,12 +51,22 @@ sub _default
 }
 
 #----------------------------------------------------
+sub _stop
+{
+#    my($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
+    DEBUG && 
+        warn "$$: Local kernel _stop\n";
+}
+
+#----------------------------------------------------
 sub shutdown 
 {
     my($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
-    DEBUG && warn "$$: Channel will shut down.\n";
+    DEBUG && 
+        warn "$$: Local kernel channel will shutdown.\n";
     return unless $heap->{ref};
     delete $heap->{ref};
+    $kernel->alias_remove('-- Local Kernel IKC Channel --');
 }
 
 #----------------------------------------------------
@@ -92,6 +101,9 @@ sub sig_INT
 __DATA__
 
 $Log: LocalKernel.pm,v $
+Revision 1.6  2004/05/13 19:51:21  fil
+Moved to signal_handled
+
 Revision 1.5  2001/08/02 03:26:50  fil
 Added documentation.
 

@@ -1,13 +1,13 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.16 2002/10/17 03:13:05 fil Exp $
+# $Id: Server.pm,v 1.19 2004/05/27 01:04:24 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -83,6 +83,19 @@ sub _select_define
 
     DEBUG and 
         warn "_select_define (on=$on)";
+
+    if($POE::VERSION >= 0.24) {
+        if($on) {
+            $heap->{wheel}->resume_accept
+        }
+        else {
+            $heap->{wheel}->pause_accept
+        }
+        return;
+    }
+
+    # NOTE : FOR OLDER VERSIONS OF POE
+    # THIS IS POORLY BEHAVED CODE
     my $state;
     my $err="possible redefinition of POE internals";
     $err="failure to bind to port" if $POE::VERSION <= 0.1005;
@@ -146,20 +159,21 @@ sub _start
         $wheel_p{BindPort}= $params->{port};
         $wheel_p{BindAddress}= $params->{ip};
     }
-    DEBUG && print "$$: Server starting $n.\n";
+    DEBUG && warn "$$: Server starting $n.\n";
 
                                         # create a socket factory
+    $heap->{wheel_address}=$n;
     $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
-    $heap->{aliases}=$params->{aliases};
+    $heap->{kernel_aliases}=$params->{aliases};
 
     # set up local names for kernel
     my @names=($heap->{name});
-    if($heap->{aliases}) {
-        if(ref $heap->{aliases}) {
-            push @names, @{$heap->{aliases}};
+    if($heap->{kernel_aliases}) {
+        if(ref $heap->{kernel_aliases}) {
+            push @names, @{$heap->{kernel_aliases}};
         } else {
-            push @names, $heap->{aliases};
+            push @names, $heap->{kernel_aliases};
         }
     }
 
@@ -266,12 +280,12 @@ sub babysit
                 warn $@ if $@;
                 # utime and stime are Linux-only :(
 
-                if($time and $time > 600000) { # arbitrary limit of 10 minutes
+                if($time and $time > 600_000) { # arbitrary limit of 10 minutes
                     $rogues{$pid}=$table{$pid};
                     # DEBUG and 
                         warn "$$: $pid hass gone rogue, time=$time ms\n";
                 } else {
-                    warn "$$: $pid time=$time ms\n";
+                    warn "$$: child $pid has utime+stime=$time ms\n";
                     $ok{$pid}=1;
                 }
 
@@ -396,7 +410,7 @@ sub _stop
         unlink $heap->{unix};
     }
     DEBUG && 
-        warn "$$: server is stoping\n";
+        warn "$$: Server $heap->{name} _stop\n";
     # DEBUG_USR2 and check_kernel($kernel, $heap->{'is a child'}, 1);
 }
 
@@ -405,7 +419,13 @@ sub shutdown
 {
     my($kernel, $heap)=@_[KERNEL, HEAP];
 
-    delete $heap->{wheel};      # close socket
+    DEBUG and warn "$$: Server $heap->{name} shutdown\n";
+
+    my $w=delete $heap->{wheel};      # close socket
+#    use Devel::Peek;
+#    Devel::Peek::Dump $w;
+    # WORK AROUND
+    $w->DESTROY;
     if($heap->{children} and %{$heap->{children}}) {
         $kernel->delay('rogues');   # we no longer care about rogues
     }
@@ -421,9 +441,10 @@ sub shutdown
 sub error
 {
     my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+    warn __PACKAGE__, " $$: encountered $operation error $errnum: $errstr\n";
     my $ignore;
     if($errnum==EADDRINUSE) {       # EADDRINUSE
-        warn "$$: Address in use\n";
+        warn "$$: IKC Address $heap->{wheel_address} in use\n";
         $heap->{'die'}=1;
         delete $heap->{wheel};
         $ignore=1;
@@ -449,12 +470,12 @@ sub accept
 
     if(DEBUG) {
         if($peer_port) {        
-            print "$$: Server connection from ", inet_ntoa($peer_host), 
+            warn "$$: Server connection from ", inet_ntoa($peer_host), 
                             ":$peer_port", 
                             ($heap->{'is a child'}  ? 
                             " (Connection $heap->{connections})\n" : "\n");
         } else {
-            print "$$: Server connection over $heap->{unix}",
+            warn "$$: Server connection over $heap->{unix}",
                             ($heap->{'is a child'}  ? 
                             " (Connection $heap->{connections})\n" : "\n");
         }
@@ -464,10 +485,13 @@ sub accept
         _select_define($heap, 0);
         return;
     }
+
+    DEBUG and warn "$$: Server kernel_aliases=", join ',', @{$heap->{kernel_aliases}||[]};
+
                                         # give the connection to a channel
     POE::Component::IKC::Channel->spawn(
                 handle=>$handle, name=>$heap->{name},
-                unix=>$heap->{unix}, aliases=>$heap->{aliases});
+                unix=>$heap->{unix}, aliases=>[@{$heap->{kernel_aliases}||[]}]);
         
     return unless $heap->{children};
 
@@ -502,16 +526,19 @@ sub fork
     # Note that the forked POE kernel might have these events in it already
     # this is unavoidable
     if($heap->{'is a child'} or not $heap->{children} or $heap->{'die'}) {
-        ## warn "$$: We are a child, why are we forking?\n";
+        DEBUG and warn "$$: We are a child, why are we forking?\n";
         return;
     }
     my $parent=$$;
-                                        # try to fork
-    my $pid = fork();
-                                        # did the fork fail?
-    unless (defined($pid)) {
+                 
+
+    DEBUG and warn "$$: Forking a child";
+                                   
+    my $pid = fork();                   # try to fork
+    unless (defined($pid)) {            # did the fork fail?
                                         # try again later, if a temporary error
         if (($! == EAGAIN) || ($! == ECHILD)) {
+            DEBUG and warn "$$: Recoverable forking problem";
             $heap->{'failed forks'}++;
             $kernel->delay('retry', 1);
         }
@@ -529,6 +556,7 @@ sub fork
             print( "$$: master server forked a new child.  children: (",
                     join(' ', sort keys %{$heap->{children}}), ")\n"
                  );
+        $kernel->yield('waste_time') if $last;
     }
                                         # child becomes a child server
     else {
@@ -543,6 +571,7 @@ sub fork
 
         $kernel->sig('CHLD');
         $kernel->sig('INT');
+        # remove the wait for babysit
         $kernel->delay('babysit') if $heap->{'babysit'};
         delete @{$heap}{qw(rogues proctable)};
 
@@ -555,8 +584,8 @@ sub fork
 
         DEBUG && print "$$: child server has been forked\n";
     }
-    $kernel->yield('waste_time') if $last;
 
+    # remove the call
     return;
 }
 

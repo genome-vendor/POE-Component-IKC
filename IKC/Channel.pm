@@ -1,13 +1,13 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.15 2002/10/17 03:13:05 fil Exp $
+# $Id: Channel.pm,v 1.17 2004/11/11 02:10:09 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 
@@ -175,7 +175,7 @@ sub _negociation_done
 {
     my($kernel, $heap)=@_;
     DEBUG && 
-            warn "Negociation done ($heap->{kernel_name}<->$heap->{remote_kernel}).\n";
+            warn "$$: Negociation done ($heap->{kernel_name}<->$heap->{remote_kernel}).\n";
 
     # generate this event on input
     $heap->{'wheel_client'}->event(InputEvent => 'receive',
@@ -280,6 +280,7 @@ sub server_000
         # put other server aliases here
         $heap->{aliases001}=[$heap->{kernel_name},
                              @{$heap->{kernel_aliases}}];   
+        DEBUG and warn "$$: Server we are going to tell remote that aliases001=", join ',', @{$heap->{aliases001}};
         _set_phase($kernel, $heap, '001');
 
     } 
@@ -397,6 +398,7 @@ sub client_000
     } 
     elsif($line =~ /^IAM\s+([-:.\w]+)$/) {   
         # Register this kernel alias with the responder
+        DEBUG and warn "$$: Remote server is called $1\n";
         push @{$heap->{remote_aliases}}, $1;
         $heap->{wheel_client}->put('OK');
 
@@ -502,8 +504,11 @@ sub channel_error
             warn "$$: The channel's client closed its connection ($heap->{kernel_name}<->$heap->{remote_kernel})\n";
     }
 
-    $kernel->call('IKC', 'unregister', $heap->{remote_ID});
-    delete $heap->{remote_ID};
+    # warn "ERROR $heap->{remote_ID}";
+    if($heap->{remote_ID}) {
+        $kernel->call('IKC', 'unregister', $heap->{remote_ID});
+        delete $heap->{remote_ID};
+    }
                                         # either way, shut down
     _close_wheel($heap);
 }
@@ -525,6 +530,11 @@ sub channel_shutdown
     my $heap = $_[HEAP];
     DEBUG && 
         warn "$$: *** Channel will shut down.\n";
+    if($heap->{remote_ID}) {
+        DEBUG and warn "SHUTDOWN $heap->{remote_ID}";
+        # $poe_kernel->call('IKC', 'unregister', $heap->{remote_ID});
+        # delete $heap->{remote_ID};
+    }
     _close_wheel($heap);
 }
 
@@ -567,7 +577,7 @@ sub channel_send
     $request->{rsvp}->{kernel}||=$heap->{kernel_name}
             if ref($request) and $request->{rsvp};
 
-    $heap->{pending}=1;
+    # $heap->{pending}=1;
     $heap->{'wheel_client'}->put($request);
     return 1;
 }
@@ -577,11 +587,12 @@ sub channel_flushed
 {
     my($heap, $wheel)=@_[HEAP, ARG0];
     DEBUG && warn "$$: Flushed data...\n";
-    $heap->{pending}=0;
+    # $heap->{pending}=0;
     if($heap->{go_away}) {
         delete $heap->{go_away};
         delete $heap->{wheel_client};
     }
+    return;
 }
 
 #----------------------------------------------------
@@ -589,14 +600,19 @@ sub _close_wheel
 {
     my($heap)=@_;
     return unless $heap->{wheel_client};
-    if($heap->{pending}) {
-        DEBUG and warn "Defering wheel";
+    if($heap->{wheel_client}->get_driver_out_octets) {
+        DEBUG and warn "************ Defering wheel";
         $heap->{go_away}=1;         # wait until next Flushed
-    } else {
-        DEBUG and warn "Deleting wheel";
-        delete $heap->{wheel_client};
-    }
-    
+        return;
+    } 
+    DEBUG and warn "Deleting wheel";
+    my $x=delete $heap->{wheel_client};
+    # WORK AROUND
+    $x->DESTROY;
+
+    #use YAML qw(Dump);
+    #my $x=Dump $poe_kernel;
+    return;   
 }
 
 #----------------------------------------------------

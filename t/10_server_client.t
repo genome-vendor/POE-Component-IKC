@@ -9,18 +9,25 @@ use strict;
 # (It may become useful if the test is moved to ./t subdirectory.)
 
 BEGIN { $| = 1; print "1..25\n"; }
+
+sub POE::Kernel::ASSERT_EVENTS { 1 }
+
 use POE::Component::IKC::Server;
 use POE::Component::IKC::Channel;
 use POE::Component::IKC::Client;
 use POE qw(Kernel);
+
 my $loaded = 1;
+
 END {print "not ok 1\n" unless $loaded;}
+
 print "ok 1\n";
 
 ######################### End of black magic.
+sub DEBUG () { 0 }
 
 my $Q=2;
-sub DEBUG () {0}
+my %OK;
 my $WIN32=1 if $^O eq 'MSWin32';
 
 
@@ -44,7 +51,20 @@ $poe_kernel->run();
 
 ok(25);
 
-sub ok
+foreach my $q (sort {$a <=> $b} keys %OK) {
+    really_ok(@{$OK{$q}});
+}
+
+
+#########################################################
+sub ok 
+{
+    my($n, $ok, $reason)=@_;
+    $OK{$n}=[$n, $ok, $reason];
+}
+
+#########################################################
+sub really_ok
 {
     my($n, $ok, $reason)=@_;
     my $not=(not defined($ok) or $ok) ? '' : "not ";
@@ -60,6 +80,7 @@ sub ok
     }
     my $skip='';
     $skip=" # skipped: $reason" if $reason;
+#    print STDERR "${not}ok $Q$skip\n";
     print "${not}ok $Q$skip\n";
     $Q++;
 }
@@ -166,7 +187,7 @@ sub _stop
 sub posted
 {
     my($kernel, $heap, $type)=@_[KERNEL, HEAP, ARG0];
-    DEBUG and warn "Server: posted\n";
+    DEBUG and warn "Server: posted $heap->{q}\n";
     # 6, 12, 18
     ok($heap->{q}+1, ($type eq 'posted'));
 }
@@ -175,7 +196,7 @@ sub posted
 sub called
 {
     my($kernel, $heap, $type)=@_[KERNEL, HEAP, ARG0];
-    DEBUG and warn "Server: called\n";
+    DEBUG and warn "Server: called $heap->{q}\n";
     # 7, 13, 19
     ok($heap->{q}+2, ($type eq 'called'));
 }

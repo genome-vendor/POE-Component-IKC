@@ -20,7 +20,7 @@ use POE::Component::IKC::Client;
 use POE::Component::IKC::Responder;
 use POE::Session;
 
-sub DEBUG {0}
+sub DEBUG { 0 }
 
 
 sub spawn 
@@ -46,7 +46,8 @@ sub _start
     $kernel->alias_set('Client');
     POE::Component::IKC::Responder->spawn();
 
-    $heap->{name}=ucfirst $type;
+    my $rname=$heap->{name}=ucfirst $type;
+#    $rname='Inet' if $heap->{name} eq 'Ikc';
     my %args=(name=>"$heap->{name}Client");
 
     if($type eq 'ikc') {
@@ -54,7 +55,7 @@ sub _start
 #        $kernel->post(IKC=>'monitor', 'Inet'=>{register=>'registered'});
 #    } else {
     }
-    $kernel->post(IKC=>'monitor', $heap->{name}=>{register=>'registered'});
+    $kernel->post(IKC=>'monitor', $rname=>{register=>'registered'});
 
 
     if($type eq 'unix') {

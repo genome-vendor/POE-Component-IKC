@@ -24,9 +24,10 @@ server2
 t/00_perl_freezer.t
 t/10_server_client.t
 t/20_clientlite.t
+t/30_local.t
 test-client
+test-lite
 userver
 uclient
 shut-server
 shut-client
-test-lite

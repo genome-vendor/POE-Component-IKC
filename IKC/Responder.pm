@@ -1,13 +1,13 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.15 2002/05/02 19:35:54 fil Exp $
+# $Id: Responder.pm,v 1.18 2004/11/11 02:10:09 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 
@@ -74,6 +74,9 @@ sub _start
 sub _stop
 {
     DEBUG and warn "$$: $_[HEAP] responder _stop\n";
+    # use YAML qw(Dump);
+    # use Data::Denter;
+    # warn Denter $poe_kernel;
 }
 
 #----------------------------------------------------
@@ -337,7 +340,7 @@ sub new
             default=>{},
             monitors=>{},
             poe_kernel=>$kernel,
-            myself=>$session,
+#            myself=>$session->ID,
         }, $package;
 }
 
@@ -350,7 +353,8 @@ sub shutdown
     # kill our alias
     $kernel->alias_remove('IKC');
     # tell every channel to shutdown
-    foreach my $c (values %{$self->{channel}}) {
+    while(my($rid, $c)=each %{$self->{channel}}) {
+        DEBUG and warn "$$: Posting shutdown to $rid (id=$c)\n";
         $kernel->post($c, 'shutdown');
     }
     # tell monitors to shutdown
@@ -359,6 +363,8 @@ sub shutdown
     foreach my $uevent (keys %{$self->{pending_subscription}}) {
         $self->_remove_state($uevent);
     }
+#    use YAML qw(Dump);
+#    warn Dump $kernel;
 }
 
 #----------------------------------------------------
@@ -442,8 +448,8 @@ sub request
             $self->send_msg({ event=>$request->{errors_to},
                               params=>$err, is_error=>1,
                             });
-        } else
-        {
+        } 
+        else {
             warn $$,  Dumper $request;
         }
     }
@@ -483,7 +489,6 @@ sub register
         DEBUG and warn "$$: Registered alias '$name'\n";
         $self->{kernel}{$name}=$rid;    # find real remote ID
         $self->{remote}{$name}||=[];    # list of proxy sessions
-        $self->{monitors}{$name}||={};
     }
     $self->inform_monitors($rid, 'register');
 
@@ -500,7 +505,8 @@ sub register_local
     my($kernel)=@{$self}{qw(poe_kernel)};
 
     my $rid=$kernel->ID;
-    DEBUG and warn "$$: Registering local kernel '$rid'\n";
+    DEBUG and 
+            warn "$$: Registering local kernel '$rid'\n";
 
     $self->{local_channel}||=POE::Component::IKC::LocalKernel->spawn->ID;
     my $channel=$self->{local_channel};
@@ -523,7 +529,6 @@ sub register_local
         DEBUG and warn "$$: Registered local alias '$name'\n";
         $self->{kernel}{$name}=$rid;    # find real remote ID
         $self->{remote}{$name}||=[];    # list of proxy sessions
-        $self->{monitors}{$name}||={};
         push @{$self->{alias}{$rid}}, $name;
     }
     return 1;
@@ -570,12 +575,14 @@ sub unregister
     my @todo;
     if($rid) {
         if($self->{channel}{$rid}) {    # this is in fact the real name
-            DEBUG and warn "Unregistered kernel '$rid'.\n";
+            DEBUG and 
+                warn "Unregistered kernel '$rid'.\n";
             $self->inform_monitors($rid, 'unregister');
 
             $self->{'default'}='' if $self->{'default'} eq $rid;
             $kernel->post($self->{channel}{$rid}, 'close');
             delete $self->{channel}{$rid};
+            # delete $self->{monitors}{$rid};
             $aliases||=delete $self->{alias}{$rid};
 
             push @todo, $rid;
@@ -588,8 +595,10 @@ sub unregister
 
     foreach my $name (@$aliases) {
         next unless defined $name;
+        # delete $self->{monitors}{$name};
         if($self->{kernel}{$name}) {
-            DEBUG and warn "Unregistered kernel alias '$name'.\n";
+            DEBUG and 
+                warn "Unregistered kernel alias '$name'.\n";
             delete $self->{kernel}{$name};
             $self->{'default'}='' if $self->{'default'} eq $name;
             push @todo, $name;
@@ -645,7 +654,7 @@ sub send_msg
         return;
     }
 
-    DEBUG and warn "poe://IKC/$e to '", specifier_name($to), "'\n";
+    DEBUG and warn "send_msg poe://IKC/$e to '", specifier_name($to), "'\n";
 
     # This way the thunk session will proxy a request back to us
     if($sender and not $msg->{from} and
@@ -919,7 +928,8 @@ sub publish
 
         die "\$states isn't an array ref" unless ref($states) eq 'ARRAY';
         foreach my $q (@$states) {
-            DEBUG and warn "Published poe:$alias/$q\n";
+            DEBUG and 
+                print STDERR "Published poe:$alias/$q\n";
             $p->{$q}=1;
         }
     }
@@ -1195,11 +1205,13 @@ sub monitor
         $states->{__name}=$name;
         DEBUGM and 
             warn "$$: Session $sender is monitoring $spec\n";
+        $self->{monitors}{$spec} ||= {};
         $self->{monitors}{$spec}{$sender}=$states;
     }
     else {
         DEBUGM and warn "$$: Session $sender is neglecting $spec\n";
         delete $self->{monitors}{$spec}{$sender};
+        delete $self->{monitors}{$spec} if 0==keys %{$self->{monitors}{$spec}};
     }
     return;
 }
@@ -1210,6 +1222,8 @@ sub monitor
 #         or * (tell every monitor about something... future use)
 # $event == name of event we are informing about
 # @params == other stuff
+# NB : inform_monitors *MUST* post or call the monitors before exiting
+#      because unregister will delete {monitors}{$rid} right after
 sub inform_monitors
 {
     my($self, $rid, $event, @params)=@_;
@@ -1927,6 +1941,16 @@ L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
 
 
 $Log: Responder.pm,v $
+Revision 1.18  2004/11/11 02:10:09  fil
+Changed pending stuff to a check of check_octets_out
+
+Revision 1.17  2004/05/27 01:04:24  fil
+Added on_error, which is automatically deprecated for the monitor stuff
+Fixed some of the test
+
+Revision 1.16  2004/05/13 19:51:21  fil
+Moved to signal_handled
+
 Revision 1.15  2002/05/02 19:35:54  fil
 Updated Chanages.
 Merged alias listing for publish/subtract

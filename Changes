@@ -1,5 +1,25 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.1501 23 Mar 2005
+    - Fixup some of the DEBUG messages
+    - Changed from use of internatl {pending} to wheel->get_driver_out_octets
+    - Added WORK AROUND for wheel leak issue
+    - LocalKernel now removes it's alias, to be tidy
+    - Removed myself element of Responder's heap.  What was it going to be
+        used for?
+    - Responder's {monitors} wasn't being cleaned up, fixed
+    - Server _select_define now uses {pause,resume}_select, which
+        is better behaved then the internal hackery previous
+    - Slight reworking of pre-forking code
+    - All tests pass
+
+0.15 26 May 2004
+    - Added on_error, which is automatically deprecated for the monitor stuff
+    - Fixed some of the test
+
+0.14 17 Oct 2002
+    - Nothing changed
+
 0.14pre3 18 Oct 2002
     - Uses sig_handled() where appropriate
 

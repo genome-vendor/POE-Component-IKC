@@ -1,13 +1,13 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm,v 1.12 2002/10/17 03:13:05 fil Exp $
+# $Id: Client.pm,v 1.14 2004/05/27 01:04:24 fil Exp $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2000,2001 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2000,2001,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.14';
+$VERSION = '0.1501';
 
 sub DEBUG { 0 }
 
@@ -104,7 +104,7 @@ sub _package_exists
 sub _start {
     my($kernel, $heap, $parms) = @_[KERNEL, HEAP, ARG0];
 
-    DEBUG && print "Client starting.\n";
+    DEBUG and warn "Client starting.\n";
     my %wheel_p=(
         SuccessEvent   => 'connected',    # generating this event on connection
         FailureEvent   => 'error'         # generating this event on error
@@ -124,6 +124,7 @@ sub _start {
     }
     $heap->{wheel} = new POE::Wheel::SocketFactory(%wheel_p);
     $heap->{on_connect}=$parms->{on_connect};
+    $heap->{on_error}=$parms->{on_error};
     $heap->{name}=$parms->{name};
     $heap->{subscribe}=$parms->{subscribe};
     $heap->{aliases}=$parms->{aliases};
@@ -149,8 +150,13 @@ sub _start {
 sub error 
 {
     my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
-    DEBUG && print "Client encountered $operation error $errnum: $errstr\n";
-    delete $heap->{wheel};
+    DEBUG and warn "Client encountered $operation error $errnum: $errstr\n";
+    my $w=delete $heap->{wheel};
+    # WORK AROUND
+    $w->DELETE;
+    if($heap->{on_error}) {
+        $heap->{on_error}->($operation, $errnum, $errstr);
+    }
 }
 
 #----------------------------------------------------
@@ -160,7 +166,7 @@ sub error
 sub connected
 {
     my ($heap, $handle, $addr, $port) = @_[HEAP, ARG0, ARG1, ARG2];
-    DEBUG && print "Client connected\n"; 
+    DEBUG and warn "Client connected\n"; 
 
 
                         # give the connection to a channel
@@ -241,10 +247,30 @@ Arrayref of even more aliases for this kernel.  Fun Fun Fun!
 
 =item C<on_connect>
 
-Code ref that is called when the connection has been made to the foreign 
+Coderef that is called when the connection has been made to the foreign 
 kernel.  Normaly, you would use this to start the sessions that post events
-to foreign kernels.  DEPRECATED.  Please use the IKC/monitor stuff.  See
-L<POE::Component::IKC::Responder>.
+to foreign kernels.  
+
+DEPRECATED.  Please use the IKC/monitor stuff.  See
+L<POE::Component::IKC::Responder>.  
+
+Note, also, that the coderef will be
+executed from within an IKC session, NOT within your own session.  This means
+that things like $poe_kernel->delay_set() won't do what you think they should.
+
+=item C<on_error>
+
+Coderef that is called for all connection errors. You could use this to
+restart the connection attempt.  Parameters are C<$operation, $errnum and
+$errstr>, which correspond to POE::Wheel::SocketFactory's FailureEvent, 
+which q.v.
+
+DEPRECATED.  Please use the IKC/monitor stuff.  See
+L<POE::Component::IKC::Responder>.  Note, also, that the coderef will be
+executed from within an IKC session, NOT within your own session.  This
+means that things like $poe_kernel->delay_set() won't do what you think they
+should.
+
 
 =item C<subscribe>
 
