@@ -1,10 +1,10 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.10 2001/07/13 06:59:45 fil Exp $
+# $Id: ClientLite.pm,v 1.14 2002/05/02 19:35:54 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -67,6 +67,7 @@ sub create_ikc_client
     $self->connect and return $self;
     return;
 }
+*spawn=\&create_ikc_client;
 
 sub name { $_[0]->{name}; }
 
@@ -74,7 +75,7 @@ sub name { $_[0]->{name}; }
 sub connect
 {
     my($self)=@_;
-    return 1 if($self->{remote}{connected} and $self->{remote}{socket} and 
+    return 1 if($self->{remote}{connected} and $self->{remote}{socket} and
                 $self->ping);  # are we already connected?
 
     my $remote=$self->{remote};
@@ -90,7 +91,7 @@ sub connect
         local $SIG{__WARN__};
         $sock=IO::Socket::INET->new(PeerAddr=>$self->{ip},
                                      PeerPort=>$self->{port},
-                                     Proto=>'tcp', Timeout=>$self->{timeout},);
+                                     xxProto=>'tcp', Timeout=>$self->{timeout},);
         die "Unable to connect to $name: $!\n" unless $sock;
         $sock->autoflush(1);
         local $/="\cM\cJ";
@@ -193,7 +194,7 @@ sub post
         
         unless($self->{remote}{name}) {
             $self->{error}=$error="Attempting to post $spec to unknown kernel";
-            carp $error;
+            # carp $error;
             return;
         }
 
@@ -306,11 +307,16 @@ sub _send_msg
     my $frozen = $self->{remote}{freeze}->($msg);
     my $raw=length($frozen) . "\0" . $frozen;
 
-    unless($self->{remote}{socket}->syswrite($raw, length $raw))
-    {
+    unless($self->{remote}{socket}->opened()) {
+        $self->{connected}=0;
+        $self->{error}=$error="Socket not open";
+        return 0;
+    }
+    unless($self->{remote}{socket}->syswrite($raw, length $raw)) {
         $self->{connected}=0;
         return 0 if($!==EPIPE);
-        die "Error writing: $!\n";
+        $self->{error}=$error="Error writing: $!\n";
+        return 0;
     }
     return 1;
 }
@@ -611,6 +617,22 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: ClientLite.pm,v $
+Revision 1.14  2002/05/02 19:35:54  fil
+Updated Chanages.
+Merged alias listing for publish/subtract
+Moved version
+
+Revision 1.13  2001/09/06 23:13:42  fil
+Added doco for Responder->spawn
+Responder->spawn always returns true so that JAAS's factory doesn't complain
+
+Revision 1.12  2001/08/02 03:26:50  fil
+Added documentation.
+
+Revision 1.11  2001/07/24 20:45:54  fil
+Fixed some win32 things like WSAEAFNOSUPPORT
+Added more tests to t/20_clientlite.t
+
 Revision 1.10  2001/07/13 06:59:45  fil
 Froze to 0.13
 

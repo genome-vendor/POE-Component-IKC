@@ -7,6 +7,7 @@ IKC/Responder.pm
 IKC/Server.pm
 IKC/Specifier.pm
 IKC/Freezer.pm
+IKC/LocalKernel.pm
 IKC.pod
 MANIFEST
 Makefile.PL
@@ -28,3 +29,4 @@ userver
 uclient
 shut-server
 shut-client
+test-lite

@@ -1,13 +1,13 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.6 2001/07/13 06:59:45 fil Exp $
+# $Id: Responder.pm,v 1.15 2002/05/02 19:35:54 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -35,23 +35,24 @@ sub DEBUG { 0 }
 # This is just a convenient way to create only one responder.
 sub create_ikc_responder 
 {
-    return if $ikc;
     __PACKAGE__->spawn();
 }
 
 sub spawn
 {
     my($package)=@_;
+    return 1 if $ikc;
     new POE::Session( $package, [qw(
                       _start _stop
                       request post call raw_message post2
                       remote_error
-                      register unregister default  
+                      register unregister default register_local
                       publish retract subscribe unsubscribe
                       published
-                      monitor shutdown 
+                      monitor inform_monitors shutdown 
                       do_you_have ping sig_INT
                     )]);
+    return 1;
 }
 
 
@@ -61,10 +62,10 @@ sub spawn
 sub _start
 {
     my($kernel, $heap, $session) = @_[KERNEL, HEAP, SESSION];
-    DEBUG and warn "Responder started.\n";
+    DEBUG and warn "$$: Responder started.\n";
     $kernel->alias_set('IKC');              # allow it to be called by name
 
-#    $kernel->signal(INT=>'sig_INT');
+#    $kernel->signal(INT=>'sig_INT');  # sig_INT is empty, so don't bother
     $ikc=POE::Component::IKC::Responder::Object->new($kernel, $session);
     $heap->{self}=$ikc;
 }
@@ -97,6 +98,14 @@ sub register
 {
     my($heap, $channel, $rid, $aliases) = @_[HEAP, SENDER, ARG0, ARG1];
     $heap->{self}->register($channel, $rid, $aliases);
+}
+
+#----------------------------------------------------
+# Register new aliases for local kernel
+sub register_local
+{
+    my($heap, $aliases) = @_[HEAP, ARG0];
+    $heap->{self}->register_local($aliases);
 }
 
 #----------------------------------------------------
@@ -273,9 +282,19 @@ sub ping
 # User wants to kill process / kernel
 sub sig_INT
 {
-    my ($heap)=$_[HEAP];
+    my ($heap, $kernel)=@_[HEAP, KERNEL];
     DEBUG && warn "$$: Responder::sig_INT\n";
-    return 1;
+    $kernel->sig_handled();
+    return;
+}
+
+
+#----------------------------------------------------
+# User wants to kill process / kernel
+sub inform_monitors
+{
+    my ($heap)=$_[HEAP];
+    $heap->{self}->inform_monitors(@_[ARG0..$#_]);
 }
 
 
@@ -293,13 +312,14 @@ use strict;
 use Carp;
 use POE::Component::IKC::Specifier;
 use POE::Component::IKC::Proxy;
+use POE::Component::IKC::LocalKernel;
 use POE qw(Session);
 
 use Data::Dumper;
 
 sub DEBUG { 0 }
 sub DEBUG2 { 0 }
-
+sub DEBUGM { DEBUG or 0 }
 sub new
 {
     my($package, $kernel, $session)=@_;
@@ -326,12 +346,16 @@ sub new
 sub shutdown
 {
     my($self, $kernel)=@_;
-    DEBUG and warn "Some one wants us to go away... off we go\n";
+    DEBUG and warn "$$: Some one wants us to go away... off we go\n";
+    # kill our alias
     $kernel->alias_remove('IKC');
+    # tell every channel to shutdown
     foreach my $c (values %{$self->{channel}}) {
         $kernel->post($c, 'shutdown');
     }
+    # tell monitors to shutdown
     $self->inform_monitors('*', 'shutdown');
+    # kill pending subscription states
     foreach my $uevent (keys %{$self->{pending_subscription}}) {
         $self->_remove_state($uevent);
     }
@@ -343,7 +367,7 @@ sub request
 {
     my($self, $request)=@_;;
     my($kernel)=@{$self}{qw(poe_kernel)};
-    # DEBUG2 and warn Dumper $request;
+    DEBUG2 and warn Dumper $request;
 
     # We ignore the kernel for now, but we should really use it to decide
     # weither we should run the request or not
@@ -352,19 +376,22 @@ sub request
     eval {
         die "$request->{event} isn't a valid specifier" unless $to;
         my $args=$request->{params};
-        # allow proxied states to have multiple ARGs
-        if($to->{state} eq 'IKC:proxy')   
-        {
+
+        ### allow proxied states to have multiple ARGs
+        if($to->{state} eq 'IKC:proxy') {
             $to->{state}=$args->[0];
             $args=$args->[1];
             DEBUG and warn "IKC proxied request for ", specifier_name($to), "\n";
-        } else
-        {
+        } 
+        else {
             DEBUG and warn "IKC request for ", specifier_name($to), "\n";
             $args=[$args];
         }
+
         # this is where we'd catch a disconnect message
-          
+        # 2001/07 : eh?
+
+
         # find out if the state we want to get at has been published
         if(exists $self->{rsvp}{$to->{session}} and
            exists $self->{rsvp}{$to->{session}}{$to->{state}} and
@@ -374,18 +401,27 @@ sub request
             DEBUG and warn "Allow $to->{session}/$to->{state} is now $self->{rsvp}{$to->{session}}{$to->{state}}\n";
         }
         elsif(not exists $self->{'local'}{$to->{session}}) {
-            die "Session $to->{session} is not available for remote kernels\n", 
-                Dumper $self->published;
-        } 
+            my $p=$self->published;;
+            die "Session '$to->{session}' is not available for remote kernels:",
+                join "\n", '',
+                    map({ "    $_=>[" . join(', ', @{$p->{$_}}) . "]"} keys %$p),
+                    '';
+        }
         elsif(not exists $self->{'local'}{$to->{session}}{$to->{state}}) {
             die "Session '$to->{session}' has not published state '",
                 $to->{state}, "'\n";
         }
 
+        # maybe caller specified #arg?  This got into $msg->{rsvp}, which
+        # went to the remote side, then came back here as $to
+        if(exists $to->{args}) {
+            push @$args, $to->{args};   # it goes on the end
+        }
+
         my $session=$kernel->alias_resolve($to->{session});
         die "Unknown session '$to->{session}'\n" unless $session;
         # warn "No FROM" unless $request->{from};
-        _thunked_post($request->{rsvp}, [$session, $to->{state}, @$args], 
+        _thunked_post($request->{rsvp}, [$session, $to->{state}, @$args],
                           $request->{from}, $request->{wantarray});
     };
 
@@ -429,20 +465,24 @@ sub register
     else {
         DEBUG and warn "$$: Registered remote kernel '$rid'\n";
         $self->{channel}{$rid}=$channel;
-        $self->{remote}{$rid}=[];
-        $self->{alias}{$rid}=$aliases;
+        $self->{remote}{$rid}=[];       # list of proxy sessions
+        $self->{alias}{$rid}=$aliases;  
         $self->{default}||=$rid;
     }
 
 
     foreach my $name (@$aliases) {
+        unless(defined $name) {
+            warn "$$: attempt to register undefined remote kernel alias\n";
+            next;
+        }
         if($self->{kernel}{$name}) {
             DEBUG and warn "$$: Remote alias '$name' already exists\n";
             next;
         }
         DEBUG and warn "$$: Registered alias '$name'\n";
-        $self->{kernel}{$name}=$rid;
-        $self->{remote}{$name}||=[];
+        $self->{kernel}{$name}=$rid;    # find real remote ID
+        $self->{remote}{$name}||=[];    # list of proxy sessions
         $self->{monitors}{$name}||={};
     }
     $self->inform_monitors($rid, 'register');
@@ -450,6 +490,46 @@ sub register
     return 1;
 }
 
+#----------------------------------------------------
+# Register a new alias for the local kernel
+sub register_local
+{
+    my($self, $aliases)=@_;
+    $aliases=[$aliases] if not ref $aliases;
+
+    my($kernel)=@{$self}{qw(poe_kernel)};
+
+    my $rid=$kernel->ID;
+    DEBUG and warn "$$: Registering local kernel '$rid'\n";
+
+    $self->{local_channel}||=POE::Component::IKC::LocalKernel->spawn->ID;
+    my $channel=$self->{local_channel};
+
+    $self->{channel}{$rid}||=$channel;
+    $self->{remote}{$rid}||=[];       # list of proxy sessions
+    $self->{alias}{$rid}||=[];
+
+    # use Data::Dumper;
+    # die Dumper $aliases;
+    foreach my $name (@$aliases) {
+        unless(defined $name) {
+            DEBUG and warn "$$: attempt to register undefined local kernel alias\n";
+            next;
+        }
+        if($self->{kernel}{$name}) {
+            DEBUG and warn "$$: Local kernel alias '$name' already exists\n";
+            next;
+        }
+        DEBUG and warn "$$: Registered local alias '$name'\n";
+        $self->{kernel}{$name}=$rid;    # find real remote ID
+        $self->{remote}{$name}||=[];    # list of proxy sessions
+        $self->{monitors}{$name}||={};
+        push @{$self->{alias}{$rid}}, $name;
+    }
+    return 1;
+}
+
+#----------------------------------------------------
 sub default
 {
     my($self, $name) = @_;
@@ -475,6 +555,7 @@ sub unregister
 {
     my($self, $channel, $rid, $aliases)=@_;
     my($kernel)=@{$self}{qw(poe_kernel)};
+    return unless $rid;
 
     unless($aliases) {
         unless($self->{channel}{$rid}) {    # unregister one alias only
@@ -543,7 +624,7 @@ sub send_msg
 
     my $to=specifier_parse($msg->{event});
     unless($to) {
-        die "Bad state ", Dumper $msg, caller;
+        die "Bad state ", Dumper $msg;
     }
     unless($to) {
         warn "Bad or missing 'event' parameter '$msg->{event}' to poe://IKC/$e\n";
@@ -567,11 +648,12 @@ sub send_msg
     DEBUG and warn "poe://IKC/$e to '", specifier_name($to), "'\n";
 
     # This way the thunk session will proxy a request back to us
-    if($sender and not $msg->{from} and 
+    if($sender and not $msg->{from} and
         # <sungo> Leolo: question. doesnt .13 require bleadPOE?
         # <Leolo> sungo : i can put the offending code into a conditional
         # if you want
-        $self->{poe_kernel}->can('alias_list')) {
+        $self->{poe_kernel}->can('alias_list')) 
+    {
         my $sid=$sender->ID if ref $sender;
         foreach my $a ($self->{poe_kernel}->alias_list($sender)) {
             $sid.=" ($a)";
@@ -579,21 +661,22 @@ sub send_msg
                 $msg->{from}={  kernel=>$self->{poe_kernel}->ID,
                                 session=>$a,
                                 state=>'IKC:proxy',
-                         };
+                             };
                 last;
             }
-        } 
-        unless($msg->{from}) {
-            DEBUG2 and 
+        }
+
+        DEBUG2 and do {
+            unless($msg->{from}) {
                 warn "Session $sid didn't publish anything SENDER isn't set";#, Denter $self->{'local'}, $sender;
-        } else {
-            DEBUG2 and 
+            } else {
                 warn "Session $sid will be thunked";
+            }
         }
     }
 
-    # This is where we should recurse $msg->{params} to turn anything 
-    # extravagant like a subref, $poe_kernel, session etc into a call back to 
+    # This is where we should recurse $msg->{params} to turn anything
+    # extravagant like a subref, $poe_kernel, session etc into a call back to
     # us.
     # $msg->{params}=$self->marshall($msg->{params});
 
@@ -602,8 +685,8 @@ sub send_msg
     unless(@channels)
     {
         warn Dumper $to;
-        warn (($name eq '*') 
-                  ? "$$: Not connected to any foreign kernels.\n" 
+        warn (($name eq '*')
+                  ? "$$: Not connected to any foreign kernels.\n"
                   : "$$: Unknown kernel '$name'.\n");
         return 0;
     }
@@ -627,7 +710,7 @@ sub send_msg
         if($kernel->call($channel, 'send', $msg)) {
             $count++;
             DEBUG2 and warn " done.\n";
-        } 
+        }
         else {
             DEBUG2 and warn " failed.\n";
             $self->{rsvp}{$rsvp->{session}}{$rsvp->{state}}-- if $rsvp;
@@ -635,7 +718,7 @@ sub send_msg
     }
 
     DEBUG2 and warn specifier_name($to), " sent to $count kernel(s).\n";
-    DEBUG and do {warn "$$: send_msg failed!" unless $count};
+    DEBUG and do {warn "$$: send_msg failed!\n" unless $count};
     return $count;
 }
 
@@ -702,7 +785,7 @@ sub demarshall
             my $func=$2;
             my $rk=$1;
             die "need to call $func in $rk";
-            $data=sub {$poe_kernel->post(IKC=>'post', 
+            $data=sub {$poe_kernel->post(IKC=>'post',
                             "poe://$rk/IKC/coderef"=>$func)};
         }
         return $data;
@@ -769,21 +852,19 @@ sub call
     $to="poe://$to"     if $to   and not ref $to   and $to!~/^poe:/;
     $rsvp="poe://$rsvp" if $rsvp and not ref $rsvp and $rsvp!~/^poe:/;
 
+    unless($rsvp) {
+        warn "$$: Missing 'rsvp' parameter in poe://IKC/call\n";
+        return;
+    }
     my $t=specifier_parse($rsvp);
-    unless($t)
-    {
-        if($rsvp)
-        {
-            warn "$$: Bad 'rsvp' parameter '$rsvp' in poe://IKC/call\n";
-        } else
-        {
-            warn "$$: Missing 'rsvp' parameter in poe://IKC/call\n";
-        }
+    unless($t) {
+        warn "$$: Bad 'rsvp' parameter '$rsvp' in poe://IKC/call\n";
         return;
     }
     $rsvp=$t;
     unless($rsvp->{state})
     {
+        DEBUG and warn Dumper $rsvp;
         warn "$$: rsvp state not set in poe://IKC/call\n";
         return;
     }
@@ -797,7 +878,7 @@ sub call
     }
     DEBUG2 and warn "RSVP is ", specifier_name($rsvp), "\n";
 
-    $self->send_msg({params=>$params, 'event'=>$to, 
+    $self->send_msg({params=>$params, 'event'=>$to,
                      rsvp=>$rsvp
                     }, $sender
                    );
@@ -806,27 +887,41 @@ sub call
 ##############################################################################
 # publish/retract/subscribe mechanism of setting up foreign sessions
 
+sub _aliases
+{
+    my($kernel, $session)=@_;
+    return $session unless ref $session; # make sure it's an object
+
+    if($kernel->can('alias_list')) {
+            # post-0.15 we register as all aliases for session
+        my @a=$kernel->alias_list($session->ID);
+        return @a if @a;
+    } 
+
+    # pre-0.15 means that we register as session ID... which is less
+    # then useful
+    return $session->ID;
+}
+
 #----------------------------------------------------
 sub publish
 {
     my($self, $session, $states)=@_;
-
-    if(not ref $session) {
-        $session||=$self->{poe_kernel}->ID_lookup($session);
-    }
-
     unless($session) {
         carp "You must specify the session that publishes these states";
         return 0;
     }
+    my @aliases =_aliases($self->{poe_kernel}, $session);
 
-    $self->{'local'}{$session}||={};
-    my $p=$self->{'local'}{$session};
+    foreach my $alias (@aliases) {
+        $self->{'local'}{$alias}||={};
+        my $p=$self->{'local'}{$alias};
 
-    die "\$states isn't an array ref" unless ref($states) eq 'ARRAY';
-    foreach my $q (@$states) {
-        DEBUG and warn "Published poe://$session/$q\n";
-        $p->{$q}=1;
+        die "\$states isn't an array ref" unless ref($states) eq 'ARRAY';
+        foreach my $q (@$states) {
+            DEBUG and warn "Published poe:$alias/$q\n";
+            $p->{$q}=1;
+        }
     }
     return 1;
 }
@@ -856,29 +951,26 @@ sub retract
 {
     my($self, $session, $states)=@_;
 
-    my $sid=$session;
-    if(not ref $session) {
-        $sid||=$self->{poe_kernel}->ID_lookup($session);
-    }
-
-    unless($sid) {
+    unless($session) {
         warn "You must specify the session that publishes these states";
         return 0;
     }
-
-    unless($self->{'local'}{$sid}) {
-        warn "Session '$session' ($sid) didn't publish anything";
-        return 0;
-    }
-
-    if($states) {
-        my $p=$self->{'local'}{$sid};
-        foreach my $q (@$states) {
-            delete $p->{$q};
+    my @aliases=_aliases($self->{poe_kernel}, $session);
+    foreach my $alias (@aliases) {
+        unless($self->{'local'}{$alias}) {
+            warn "Session '$session' ($alias) didn't publish anything, can't retract";
+            return 0;
         }
-        delete $self->{'local'}{$sid} unless %$p;
-    } else {
-        delete $self->{'local'}{$sid};
+
+        if($states) {
+            my $p=$self->{'local'}{$alias};
+            foreach my $q (@$states) {
+                delete $p->{$q};
+            }
+            delete $self->{'local'}{$alias} unless keys %$p;
+        } else {
+            delete $self->{'local'}{$alias};
+        }
     }
     return 1;
 }
@@ -1006,12 +1098,17 @@ sub _subscribe_receipt
     else {                                      # accepted
         $ses=specifier_parse($ses);
         die "Bad state" unless $ses;
+        my($kernel)=@{$self}{qw(poe_kernel)};
 
         DEBUG and warn "Create proxy for ", specifier_name($ses), "\n";
         my $proxy=POE::Component::IKC::Proxy->spawn(
                       $ses->{kernel}, $ses->{session},
-                      sub { $self->inform_monitors($rid, 'subscribe', $ses)},
-                      sub { $self->inform_monitors($rid, 'unsubscribe', $ses)}
+                      sub { $kernel->post(IKC=>'inform_monitors', 
+                                $rid, 'subscribe', $ses)},
+                      # 2002/04 monitor_stop is called in _stop, but we can't
+                      # can't post() from _stop, so we call() ourself
+                      sub { $kernel->call(IKC=>'inform_monitors', 
+                                $rid, 'unsubscribe', $ses)},
                     );
 
         push @{$self->{remote}{$ses->{kernel}}}, $proxy;
@@ -1096,11 +1193,12 @@ sub monitor
 
     if($states) {
         $states->{__name}=$name;
-        DEBUG and warn "$$: Session ID=$sender is monitoring $spec\n";
+        DEBUGM and 
+            warn "$$: Session $sender is monitoring $spec\n";
         $self->{monitors}{$spec}{$sender}=$states;
     }
     else {
-        DEBUG and warn "$$: Session ID=$sender is neglecting $spec\n";
+        DEBUGM and warn "$$: Session $sender is neglecting $spec\n";
         delete $self->{monitors}{$spec}{$sender};
     }
     return;
@@ -1117,10 +1215,11 @@ sub inform_monitors
     my($self, $rid, $event, @params)=@_;
     my($kernel)=@{$self}{qw(poe_kernel)};
     $rid=specifier_part($rid, 'kernel') unless $rid eq '*';
-    croak "No kernel in $_[1]!" unless $rid;
+    croak "$$: No kernel in $_[1]!" unless $rid;
 
     my $real=1 if $self->{channel}{$rid};
-    DEBUG and warn "$rid is", ($real ? '' : "n't"), " real\n";
+    DEBUGM and 
+        warn "$$: $rid is", ($real ? '' : "n't"), " real\n";
 
     # got to be a better way of doing this...
     my @todo=($rid);
@@ -1130,7 +1229,8 @@ sub inform_monitors
 
         my $ms=$self->{monitors}{$n};
         unless($ms and %$ms) {
-            DEBUG and warn "$$: No sessions care about $n/$event\n";
+            DEBUGM and 
+                warn "$$: No sessions care about $event $n\n";
             next;
         }
 
@@ -1140,7 +1240,8 @@ sub inform_monitors
             my $e=$states->{$event};
             next unless $e;
 
-            DEBUG and warn "$$: Informing Session ID=$sender/$e about $n/$event\n";
+            DEBUGM and 
+                warn "$$: Informing Session $sender/$e about $n/$event\n";
                 # ARG0 = what Session called the kernel
                 # ARG1 = what kernel calls the kernel
                 # ARG2 = true if kernel is name, false if alias
@@ -1151,6 +1252,7 @@ sub inform_monitors
         }
     }
 
+    # $rid might be an alias to something else, inform about those as well
     if($self->{channel}{$rid}) {
         foreach my $ra (@{$self->{alias}{$rid}}) {
             $self->inform_monitors($ra, $event, @params);
@@ -1189,8 +1291,8 @@ sub DEBUG { 0 }
     $name=~s/\W//g;
     sub thunk
     {
-        my($rsvp, $args, $from, $wantarray)=@_;
-        POE::Session->new(__PACKAGE__, [qw(_start _stop _default)], 
+        # my($rsvp, $args, $from, $wantarray)=@_;
+        POE::Session->new(__PACKAGE__, [qw(_start _stop _default)],
                                        [$name++, @_]
                              );
     }
@@ -1207,7 +1309,7 @@ sub _start
     DEBUG and warn "$name created\n";
 
     if($rsvp) {                         # foreign session wants returned value
-        
+
         DEBUG and do { warn "Wants an array" if $wantarray};
 
         my(@ret, $yes);
@@ -1223,14 +1325,17 @@ sub _start
                 local $"=', ';
                 warn "Posted response '@ret' to ", Dumper $rsvp;
             };
-
-            # This is the POSTBACK            
+            # This is the POSTBACK
             $POE::Component::IKC::Responder::ikc->send_msg(
-                    {params=>($wantarray ? \@ret : $ret[0]), event=>$rsvp}, 
+                    {params=>($wantarray ? \@ret : $ret[0]), event=>$rsvp},
                     $args->[0]);
         }
-    } 
+    }
     else {
+        DEBUG and do {
+            local $"=', ';
+            warn "Posting @$args";
+        };
         $kernel->post(@$args);
     }
 }
@@ -1284,6 +1389,15 @@ There are 2 interfaces to the responder.  Either by sending states to the
 better behaved, because POE is a cooperative system.
 
 =head1 STATES/METHODS
+
+=head2 C<spawn>
+
+    POE::Component::IKC::Responder->spawn();
+
+This function creates the Responder session and object.  Normally, 
+C<IKC::Client> or C<IKC::Server> does this for you.  But in some applications
+you want to make sure that the Responder is up and running before then.
+
 
 =head2 C<post>
 
@@ -1418,6 +1532,15 @@ optional parameter is an array ref of kernel aliases to be unregistered.
 This second parameter is a tad silly, because if you unregister a remote
 kernel, it goes without saying that all it's aliases get unregistered also.
 
+
+
+=head2 C<register_local>
+
+Registers new aliases for local kernel with the responder.  This is done
+internally by C<IKC::Server> and C<IKC::Client>. Will NOT define the default
+kernel.
+
+First and only parameter is an array ref of kernel aliases to be registered.
 
 
 
@@ -1562,9 +1685,7 @@ Subscription receipt timeout is currently set to 120 seconds.
 =head2 C<unsubscribe>
 
 Reverse of the C<subscribe> method.  However, it is currently not
-implemented.
-
-
+documented well.
 
 =head2 C<ping>
 
@@ -1765,6 +1886,8 @@ This function creates the Responder session and object.  However, you don't
 need to call this directly, because C<IKC::Client> or C<IKC::Server> does
 this for you.
 
+Deprecated, use C<spawn>.
+
 =head1 L<Note about SENDER>
 
 An attempt is made to provide a sane SENDER param to called or posted
@@ -1801,3 +1924,24 @@ Philip Gwyn, <perl-ikc at pied.nu>
 L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
 
 =cut
+
+
+$Log: Responder.pm,v $
+Revision 1.15  2002/05/02 19:35:54  fil
+Updated Chanages.
+Merged alias listing for publish/subtract
+Moved version
+
+Revision 1.14  2002/05/02 19:00:32  fil
+Fixed inform_monitor comming from IKC::Proxy/_stop.  We can't post()
+from _stop, so method call is turned into ->call().
+
+Revision 1.13  2001/10/27 03:14:45  fil
+Now works with latest CVS version of POE (0.1701)
+
+Revision 1.12  2001/09/06 23:13:42  fil
+Added doco for Responder->spawn
+Responder->spawn always returns true so that JAAS's factory doesn't complain
+
+Revision 1.11  2001/08/02 03:26:50  fil
+Added documentation.

@@ -1,5 +1,39 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.14pre3 18 Oct 2002
+    - Uses sig_handled() where appropriate
+
+0.14pre2 16 Oct 2002
+    - Now uses *Event rather then *State
+
+0.14pre1 2 may 2002
+    - inform_monitor is now an event
+    - IKC::Proxy post()s to inform_monitor in _start
+    - IKC::Proxy call()s inform_monitor in _stop
+    - Merged up alias listing in publish/retract
+
+0.1303 26 Oct 2001
+    - IKC::Responder->spawn returns true on success
+    - IKC::Responder->spawn documented
+    - Checking to make sure a publishing session has an alias.  if not, use ID
+    - First babysitting happens at startup, doesn't wait
+    - check_kernel brought in line w/ new kernel internals
+
+0.1302 6 Sept 2001
+    - Meaningless version change
+
+0.1301 24 July 2001
+    - unix domain paths in kernel names now have / and \ turned into _
+    - Local kernel gets many names
+    - Make sure sockets are open before syswrite during neg phase of 
+        ClientLite, allowing better error handling
+    - IKC::Responder::spawn now checks that only one responder exists
+    - alias_list is only supported after 0.15
+    - Added win32 support (WSAEAFNOSUPPORT)
+    - IKC::Responder has better state dumping
+    - Better specifier matching
+    - Added test for ClientLite
+
 0.13  13 July 2001
     - Added and repaired serializer selection for clients
     - Added doco for ClientLite

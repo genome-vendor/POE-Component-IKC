@@ -21,13 +21,16 @@ print "ok 1\n";
 
 my $Q=2;
 sub DEBUG () {0}
+my $WIN32=1 if $^O eq 'MSWin32';
 
 
 DEBUG and print "Starting servers...\n";
-POE::Component::IKC::Server->spawn(
+unless($WIN32) {
+    POE::Component::IKC::Server->spawn(
         unix=>($ENV{TMPDIR}||$ENV{TEMP}||'/tmp').'/IKC-test.pl',
         name=>'Unix',
     );
+}
 
 POE::Component::IKC::Server->spawn(
         port=>1338,
@@ -43,7 +46,7 @@ ok(25);
 
 sub ok
 {
-    my($n, $ok)=@_;
+    my($n, $ok, $reason)=@_;
     my $not=(not defined($ok) or $ok) ? '' : "not ";
     if(defined $n) {
         if($n < $Q) {
@@ -55,9 +58,12 @@ sub ok
             $Q=$n;
         }
     }
-    print "${not}ok $Q\n";
+    my $skip='';
+    $skip=" # skipped: $reason" if $reason;
+    print "${not}ok $Q$skip\n";
     $Q++;
 }
+
 
 ############################################################################
 package Test::Server;
@@ -106,10 +112,12 @@ sub _start
     $published=$kernel->call(IKC=>'published');
     ok(4, (ref $published eq 'HASH' and 2==keys %$published));
 
-    $kernel->post(IKC=>'monitor', 'UnixClient'=>{
+    unless($WIN32) {
+        $kernel->post(IKC=>'monitor', 'UnixClient'=>{
             register=>'unix_register',
             unregister=>'unix_unregister'
         });
+    }
     $kernel->post(IKC=>'monitor', 'InetClient'=>{
             register=>'inet_register',
             unregister=>'inet_unregister'
@@ -120,7 +128,14 @@ sub _start
         });
     $kernel->post(IKC=>'monitor', '*'=>{shutdown=>'shutdown'});
 
-    $kernel->yield(do_child=>'unix');
+    unless($WIN32) {
+        $kernel->yield(do_child=>'unix');
+    } else {
+        foreach my $n (5..10) {
+            ok($n, 1, "win32 doesn't have UNIX domain sockets");
+        }
+        $kernel->yield(do_child=>'inet');
+    }
 }
 
 ###########################################################
@@ -261,6 +276,7 @@ sub shutdown
 {
     my($kernel, $heap, $name, $alias, $is_alias, 
                             )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
+    $kernel->alias_remove('test');
     DEBUG and warn "Server: shutdown\n";
     ok(23);
 }
@@ -272,3 +288,4 @@ sub timeout
     warn "Server: Timedout waiting for child process.\n";
     $kernel->post(IKC=>'shutdown');
 }
+

@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm,v 1.7 2001/07/13 06:59:45 fil Exp $
+# $Id: Client.pm,v 1.12 2002/10/17 03:13:05 fil Exp $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -102,12 +102,12 @@ sub _package_exists
 # factory.
 
 sub _start {
-    my($heap, $parms) = @_[HEAP, ARG0];
+    my($kernel, $heap, $parms) = @_[KERNEL, HEAP, ARG0];
 
     DEBUG && print "Client starting.\n";
     my %wheel_p=(
-        SuccessState   => 'connected',    # generating this event on connection
-        FailureState   => 'error'         # generating this event on error
+        SuccessEvent   => 'connected',    # generating this event on connection
+        FailureEvent   => 'error'         # generating this event on error
     );
                                         # create a socket factory
     if($parms->{unix}) {
@@ -128,6 +128,17 @@ sub _start {
     $heap->{subscribe}=$parms->{subscribe};
     $heap->{aliases}=$parms->{aliases};
     $heap->{serializers}=$parms->{serializers};
+
+    # set up local names for kernel
+    my @names=($heap->{name});
+    if(exists $heap->{aliases}) {
+        if(ref $heap->{aliases}) {
+            push @names, @{$heap->{aliases}};
+        } else {
+            push @names, $heap->{aliases};
+        }
+    }
+    $kernel->post(IKC=>'register_local', \@names);
 }
 
 #----------------------------------------------------
@@ -220,7 +231,9 @@ Path to unix-domain socket that the server is listening on.
 
 Local kernel name.  This is how we shall "advertise" ourself to foreign
 kernels. It acts as a "kernel alias".  This parameter is temporary, pending
-the addition of true kernel names in the POE core.
+the addition of true kernel names in the POE core.  This name, and all
+aliases will be registered with the responder so that you can post to them
+as if they were remote.
 
 =item C<aliases>
 

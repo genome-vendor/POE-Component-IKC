@@ -1,22 +1,24 @@
 package POE::Component::IKC::Specifier;
 
 ############################################################
-# $Id: Specifier.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
+# $Id: Specifier.pm,v 1.9 2002/05/02 19:35:54 fil Exp $
 #
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
 # Contributed portions of IKC may be copyright by their respective
-# contributors.  
+# contributors.
 
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 
+use Carp;
+
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw( specifier_parse specifier_name specifier_part);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -26,34 +28,41 @@ sub specifier_parse ($)
 {
     my($specifier)=@_;
     return if not $specifier;
-    unless(ref $specifier)
-    {
+    unless(ref $specifier) {
         if($specifier=~m(^poe:
                         (?:
                             (//)
                             ((?:\*)                             |
-                             (?:[-. \w]+)                       | 
+                             (?:[-. \w]+)                       |
                              (?:[a-zA-Z0-9][-.a-zA-Z0-9]+:\d+)  |
                              (?:unix:[-.\w]+(?::\d+-\d+)?)
-                                
+
                             )?
                         )?
                         (?:
                             (/)
-                            ([- \w]+)        
+                            ([- \w]+)
                         )?
-                        (?: 
+                        (?:
                             (/)?
                             ([- \w]*)
                         )?
-                        $)x)
-        {
+                        (?: \x23
+                            (\w+)
+                        )?
+                        $)x) {
             $specifier={kernel=>$2, session=>$4, state=>$6};
-        } else
-        {
+            $specifier->{args}=$7 if $7;
+        } 
+        else {
             return;
         }
     } 
+    elsif('HASH' ne ref $specifier) {
+#        carp "Why is specifier a ", ref $specifier;
+        return;
+    }
+
     $specifier->{kernel}||='';
     $specifier->{session}||='';
     $specifier->{state}||='';

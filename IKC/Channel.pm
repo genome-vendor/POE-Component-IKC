@@ -1,13 +1,13 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.7 2001/07/13 06:59:45 fil Exp $
+# $Id: Channel.pm,v 1.15 2002/10/17 03:13:05 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -123,10 +123,13 @@ sub channel_start
         $heap->{temp_remote_kernel}=$p->{rname};
     } 
     elsif($p->{unix}) {        # we are a client
-        $heap->{remote_kernel}="unix:$p->{unix}:$$:".
+        my $n=$p->{unix};
+        $n=~tr(/\\)(--);
+        $heap->{remote_kernel}="unix:$n:$$:".
                                     fileno($p->{handle});
-        $heap->{temp_remote_kernel}="unix:$p->{unix}" 
-                        if $p->{on_connect};
+        $heap->{temp_remote_kernel}="unix:n" if $p->{on_connect};
+
+
         # we need to have unique aliases for remote kernels
         # so, only the server gets a default name, clients don't
     } 
@@ -143,9 +146,9 @@ sub channel_start
     $heap->{wheel_client} = new POE::Wheel::ReadWrite
     ( Handle     => $p->{handle},      # on this handle
       Driver     => new POE::Driver::SysRW, # using sysread and syswrite
-      InputState => 'none',
+      InputEvent => 'none',
       Filter     => POE::Filter::Line->new(), # use a line filter for negociations
-      ErrorState => 'error',                # generate this event on error
+      ErrorEvent => 'error',                # generate this event on error
     );
 
     $session->option(default=>1);
@@ -175,8 +178,8 @@ sub _negociation_done
             warn "Negociation done ($heap->{kernel_name}<->$heap->{remote_kernel}).\n";
 
     # generate this event on input
-    $heap->{'wheel_client'}->event(InputState => 'receive',
-                                   FlushedState => 'flushed');
+    $heap->{'wheel_client'}->event(InputEvent => 'receive',
+                                   FlushedEvent => 'flushed');
 
     unless($heap->{filter}) {
         DEBUG and warn "$$: We didn't negociate a freezer, using defaults\n";
@@ -239,7 +242,7 @@ sub channel_done
     }    
 
     # wait until everything is sane before registering this
-#    $kernel->signal(INT=>'sig_INT');
+#    $kernel->signal(INT=>'sig_INT');       # sig_INT() is in fact empty
 }
 
 #----------------------------------------------------
@@ -257,7 +260,7 @@ sub _set_phase
     $neg='client_' if($heap->{on_connect});
 
         # generate this event on input
-    $heap->{'wheel_client'}->event(InputState => $neg.$phase);
+    $heap->{'wheel_client'}->event(InputEvent => $neg.$phase);
     DEBUG && warn "Negociation phase $neg$phase.\n";
     $kernel->yield($neg.$phase);               # Start the negociation phase
     return;
@@ -520,7 +523,8 @@ sub channel_default
 sub channel_shutdown 
 {
     my $heap = $_[HEAP];
-    DEBUG && warn "$$: Channel will shut down.\n";
+    DEBUG && 
+        warn "$$: *** Channel will shut down.\n";
     _close_wheel($heap);
 }
 
@@ -586,8 +590,10 @@ sub _close_wheel
     my($heap)=@_;
     return unless $heap->{wheel_client};
     if($heap->{pending}) {
+        DEBUG and warn "Defering wheel";
         $heap->{go_away}=1;         # wait until next Flushed
     } else {
+        DEBUG and warn "Deleting wheel";
         delete $heap->{wheel_client};
     }
     
@@ -606,9 +612,10 @@ sub channel_close
 # User wants to kill process / kernel
 sub sig_INT
 {
-    my ($heap)=$_[HEAP];
+    my ($heap, $kernel)=@_[HEAP, KERNEL];
     DEBUG && warn "$$: Channel::sig_INT\n";
-    return 1;
+    $kernel->sig_handled();
+    return;
 }
 
 ###########################################################################

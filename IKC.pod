@@ -155,6 +155,18 @@ And they should all disapear.  At worst, some will still have registered
 alises, but this won't prevent the kernel from exiting.
 
 
+=head2 The local kernel
+
+You can post to the local kernel as if it was remote:
+
+    $kernel->post(IKC=>'post', 
+                    "poe://$kernel->ID/session/state'=>$ONE_arg);
+
+However, you can't currently subscribe to local sessions.  I don't know how
+I'm going to resolve this.
+
+
+
 =head1 DESCRIPTION
 
 This a first draft if Inter-Kernel Communication for POE.  It is intended

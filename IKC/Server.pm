@@ -1,18 +1,18 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
+# $Id: Server.pm,v 1.16 2002/10/17 03:13:05 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# Copyright 1999,2001,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
 # Contributed portions of IKC may be copyright by their respective
-# contributors.  
+# contributors.
 
 use strict;
 use Socket;
@@ -27,10 +27,18 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
+BEGIN {
+    # http://support.microsoft.com/support/kb/articles/Q150/5/37.asp
+    eval '*WSAEAFNOSUPPORT = sub { 10047};';
+    if($^O eq 'MSWin32') {
+        eval '*EADDRINUSE      = sub { 10048 };';
+    }
+}
+
 
 ###############################################################################
 #----------------------------------------------------
@@ -48,10 +56,10 @@ sub create_ikc_server
     }
 
     create_ikc_responder();
-    POE::Session->new( 
+    POE::Session->new(
                     $params{package}, [qw(
-                        _start _stop error 
-                        accept fork retry waste_time 
+                        _start _stop error
+                        accept fork retry waste_time
                         babysit rogues shutdown
                         sig_CHLD sig_INT sig_USR2
                         )],
@@ -71,7 +79,10 @@ sub spawn
 sub _select_define
 {
     my($heap, $on)=@_;
+    $on||=0;
 
+    DEBUG and 
+        warn "_select_define (on=$on)";
     my $state;
     my $err="possible redefinition of POE internals";
     $err="failure to bind to port" if $POE::VERSION <= 0.1005;
@@ -82,7 +93,7 @@ sub _select_define
         } else {
             $state=$heap->{wheel}->[5];
         }
-        
+
         unless(defined $state) {
             die "No 'state_accept' in $heap->{wheel}, $err.\n";
         }
@@ -95,7 +106,7 @@ sub _select_define
             $poe_kernel->select_read($heap->{wheel}->{$hndl}, $state);
             $c++;
         }
-    } 
+    }
     else {
         $poe_kernel->select_read($heap->{wheel}->[0], $state);
         $c++;
@@ -112,16 +123,16 @@ sub _start
 {
     my($heap, $params, $kernel) = @_[HEAP, ARG0, KERNEL];
 
-    # monitor for shutdown events.  
-    # this is the best way to get IKC::Responder to tell us about the 
+    # monitor for shutdown events.
+    # this is the best way to get IKC::Responder to tell us about the
     # shutdown
     $kernel->post(IKC=>'monitor', '*', {shutdown=>'shutdown'});
 
-    my $n='unknown';     
+    my $n='unknown';
     my %wheel_p=(
         Reuse          => 'yes',        # and allow immediate reuse of the port
-        SuccessState   => 'accept',     # generating this event on connection
-        FailureState   => 'error'       # generating this event on error
+        SuccessEvent   => 'accept',     # generating this event on connection
+        FailureEvent   => 'error'       # generating this event on error
     );
     if($params->{unix}) {
         $n="unix:$params->{unix}";
@@ -129,7 +140,7 @@ sub _start
         $wheel_p{BindAddress}=$params->{unix};
         $heap->{unix}=$params->{unix};
         unlink $heap->{unix};           # blindly do this ?
-    } 
+    }
     else {
         $n="$params->{ip}:$params->{port}";
         $wheel_p{BindPort}= $params->{port};
@@ -141,6 +152,18 @@ sub _start
     $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
     $heap->{aliases}=$params->{aliases};
+
+    # set up local names for kernel
+    my @names=($heap->{name});
+    if($heap->{aliases}) {
+        if(ref $heap->{aliases}) {
+            push @names, @{$heap->{aliases}};
+        } else {
+            push @names, $heap->{aliases};
+        }
+    }
+
+    $kernel->post(IKC=>'register_local', \@names);
 
     return unless $params->{processes};
 
@@ -158,13 +181,15 @@ sub _start
     $heap->{'failed forks'} = 0;
     $heap->{verbose}=$params->{verbose}||0;
     $heap->{"max connections"}=$params->{connections}||1;
-                                        
+
     $heap->{'is a child'} = 0;          # change behavior for children
+    my $children=0;
     foreach (2..$params->{processes}) { # fork the initial set of children
-        $kernel->yield('fork');
+        $kernel->yield('fork', ($_ == $params->{processes}));
+        $children++;
     }
 
-    $kernel->delay('waste_time', 60);
+    $kernel->yield('waste_time', 60) unless $children;
     if($params->{babysit}) {
         $heap->{babysit}=$params->{babysit};
         delete($heap->{"proctable"});
@@ -188,6 +213,7 @@ sub waste_time
     return if $heap->{'is a child'};
 
     unless($heap->{'been told we are parent'}) {
+        warn "$$: Telling everyone we are the parent\n";
         $heap->{'been told we are parent'}=1;
         $kernel->signal($kernel, '__parent');
     }
@@ -243,7 +269,7 @@ sub babysit
                 if($time and $time > 600000) { # arbitrary limit of 10 minutes
                     $rogues{$pid}=$table{$pid};
                     # DEBUG and 
-                    warn "$$: $pid hass gone rogue, time=$time ms\n";
+                        warn "$$: $pid hass gone rogue, time=$time ms\n";
                 } else {
                     warn "$$: $pid time=$time ms\n";
                     $ok{$pid}=1;
@@ -358,7 +384,7 @@ eval {
 sub _stop 
 {
     my($kernel, $heap) = @_[KERNEL, HEAP];
-    check_kernel($kernel, $heap->{'is a child'});
+
                                         # kill the child servers
     if($heap->{children}) {
         foreach (keys %{$heap->{children}}) {
@@ -369,7 +395,9 @@ sub _stop
     if($heap->{unix}) {
         unlink $heap->{unix};
     }
-    DEBUG && print "$$: server is stoping\n";
+    DEBUG && 
+        warn "$$: server is stoping\n";
+    # DEBUG_USR2 and check_kernel($kernel, $heap->{'is a child'}, 1);
 }
 
 #------------------------------------------------------------------------------
@@ -390,14 +418,23 @@ sub shutdown
 # error occurs while initializing the factory's listening socket, it
 # will exit anyway.
 
-sub error 
+sub error
 {
     my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
-    # TODO : post to monitors
-    warn __PACKAGE__, " encountered $operation error $errnum: $errstr\n";
+    my $ignore;
     if($errnum==EADDRINUSE) {       # EADDRINUSE
+        warn "$$: Address in use\n";
         $heap->{'die'}=1;
         delete $heap->{wheel};
+        $ignore=1;
+    } elsif($errnum==WSAEAFNOSUPPORT) {
+        # Address family not supported by protocol family.
+        # we get this error, yet nothing bad happens... oh well
+        $ignore=1;
+    }
+    unless($ignore) {
+        # TODO : post to monitors
+        warn __PACKAGE__, " $$: encountered $operation error $errnum: $errstr\n";
     }
 }
 
@@ -437,13 +474,16 @@ sub accept
     if ($heap->{'is a child'}) {
 
         if (--$heap->{connections} < 1) {
-            DEBUG and warn "$$: Game over\n";
+            DEBUG and 
+                warn "$$: ************* Game over\n";
             $kernel->delay('waste_time');
             delete $heap->{wheel};
-            check_kernel($kernel);
+#            $kernel->post(IKC=>'shutdown');
+#            check_kernel($kernel);
 #            $kernel->yield('_stop');
         } else {
-            DEBUG and warn "$$: $heap->{connections} left\n";
+            DEBUG and 
+                warn "$$: $heap->{connections} left\n";
         }
     } else {
         warn "$$: Master client got a connect!  this sucks!\n";
@@ -457,7 +497,7 @@ sub accept
 # The server has been requested to fork, so fork already.
 sub fork 
 {
-    my ($kernel, $heap) = @_[KERNEL, HEAP];
+    my ($kernel, $heap, $last) = @_[KERNEL, HEAP, ARG0];
     # children should not honor this event
     # Note that the forked POE kernel might have these events in it already
     # this is unavoidable
@@ -515,6 +555,8 @@ sub fork
 
         DEBUG && print "$$: child server has been forked\n";
     }
+    $kernel->yield('waste_time') if $last;
+
     return;
 }
 
@@ -550,7 +592,7 @@ sub sig_CHLD
     my ($kernel, $heap, $signal, $pid, $status, $fake) =
                 @_[KERNEL, HEAP, ARG0, ARG1, ARG2, ARG3];
 
-    return 0 if $heap->{"is a child"};
+    return if $heap->{"is a child"};
 
     if($heap->{children}) {
                                 # if it was one of ours; fork another
@@ -569,7 +611,7 @@ sub sig_CHLD
         }
     }
                                         # don't handle terminal signals
-    return 0;
+    return;
 }
 
 #------------------------------------------------------------------------------
@@ -587,36 +629,44 @@ sub sig_INT
         warn "$$ SIGINT\n";
         $heap->{'die'}=1;
         $kernel->delay('waste_time');   # kill this event
-        return 1;
+        $kernel->sig_handled();
     } else {
         delete $heap->{wheel};
-        return 1;
+        $kernel->sig_handled();
     }    
-                                        # don't handle terminal signals
-    return 0;
+    # don't handle terminal signals
+    return;
 }
 
 sub check_kernel
 {
     my($kernel, $child, $signal)=@_;
     if(ref $kernel) {
-        # 3 = KR_STATES
-        # 8 = KR_ALARMS
         # 2 = KR_HANDLES
-        # 14 = KR_EXTRA_REFS
-    
-        warn( "$$ ----- Kernel Activity -----\n",
-               "| States : ", scalar(@{$kernel->[3]}), "\n",
-               "| Alarms : ", scalar(@{$kernel->[8]}), "\n",
-               "| Files  : ", scalar(keys(%{$kernel->[2]})), "\n",
-               "| Extra  : ", $kernel->[14], "\n",
-               "$$ ---------------------------\n"
-             ) if $signal; 
-        if($child) {
-            foreach my $q (@{$kernel->[8]}) {
-                warn "************ Alarm for ", join '/', @{$q->[0][2]{$q->[2]}};
-            }
-        }
+        # 7 = KR_EVENTS
+        # 8 = KR_ALARMS (NO MORE!)
+        # 12 = KR_EXTRA_REFS
+
+        # 0 = HND_HANDLE
+        warn( "$$: ,----- Kernel Activity -----\n",  
+              "$$: | States : ", scalar(@{$kernel->[7]}), " ",
+                            join( ', ', map {$_->[0]->ID."/$_->[2]"} 
+                                        @{$kernel->[7]}), "\n",
+#              "$$: | Alarms : ", scalar(@{$kernel->[8]}), "\n",
+              "$$: | Files  : ", scalar(keys(%{$kernel->[2]})), "\n",
+              "$$: |   `--> : ", join( ', ',
+                               sort { $a <=> $b }
+                               map { fileno($_->[0]) }
+                               values(%{$kernel->[2]})
+                             ),   "\n",
+              "$$: | Extra  : ${$kernel->[12]}\n",
+              "$$: `---------------------------\n",
+         );
+#        if($child) {
+#            foreach my $q (@{$kernel->[8]}) {
+#                warn "************ Alarm for ", join '/', @{$q->[0][2]{$q->[2]}};
+#            }
+#        }
     } else {
         warn "$kernel isn't a reference";
     }
@@ -629,6 +679,8 @@ sub sig_USR2
     $pid||='';
     check_kernel($kernel, $heap->{'is a child'}, 1);
     warn "$$: signal $signal $pid\n";
+    $kernel->sig_handled();
+    return;
 }
 
 
@@ -685,7 +737,9 @@ socket is attempted!  Buyer beware.
 
 Local kernel name.  This is how we shall "advertise" ourself to foreign
 kernels. It acts as a "kernel alias".  This parameter is temporary, pending
-the addition of true kernel names in the POE core.
+the addition of true kernel names in the POE core.  This name, and all
+aliases will be registered with the responder so that you can post to them
+as if they were remote.
 
 =item C<aliases>
 

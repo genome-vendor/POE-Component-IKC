@@ -1,6 +1,8 @@
 $^W=1;
 use strict;
 
+# sub POE::Kernel::TRACE_EVENTS () {1}
+# sub POE::Kernel::TRACE_RETURNS () {1}
 use POE::Kernel;
 
 eval {
@@ -105,7 +107,7 @@ sub callback
 ########################################################
 sub subscribing
 {
-    DEBUG and warn "Client: subscribing\n";
+    DEBUG and warn "Client: subscribing ($$)\n";
     my($kernel, $heap)=@_[KERNEL, HEAP];
     $kernel->post(IKC=>'monitor', $heap->{name}=>{
                 subscribe=>'subscribed',
@@ -125,7 +127,7 @@ sub subscribed
 
 sub YOW
 {
-    DEBUG and warn "Client: YOW\n";
+    DEBUG and warn "Client: YOW\nClient: unsubscribing\n";
     my($kernel, $heap)=@_[KERNEL, HEAP];    
     $kernel->post(IKC=>'retract', Client=>[qw(YOW)]);
     $kernel->post(IKC=>'unsubscribe', "poe://$heap->{name}/test");

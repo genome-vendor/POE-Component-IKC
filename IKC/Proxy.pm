@@ -1,9 +1,9 @@
-# $Id: Proxy.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
+# $Id: Proxy.pm,v 1.9 2002/05/02 19:35:54 fil Exp $
 package POE::Component::IKC::Proxy;
 
 ##############################################################################
-# $Id: Proxy.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
-# Copyright 1999 Philip Gwyn.  All rights reserved.
+# $Id: Proxy.pm,v 1.9 2002/05/02 19:35:54 fil Exp $
+# Copyright 1999,2002 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -21,7 +21,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_proxy);
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 sub DEBUG { 0 }
 
@@ -37,11 +37,11 @@ sub spawn
     my $name=specifier_name({kernel=>$r_kernel, session=>$r_session});
     my $t=$poe_kernel->alias_resolve($name);
 
-    if($t)
-    {
-       #  $poe_kernel->call($t, '_add_callback', $r_kernel, $r_session);
-    } else
-    {
+    if($t) {
+        # why is this commented out?
+       # $poe_kernel->call($t, '_add_callback', $r_kernel, $r_session);
+    } 
+    else {
         POE::Session->new($package, 
                       [qw(_start _stop _delete _default _shutdown _add_callback)], 
                       [$name, $r_kernel, $r_session, $monitor_start, $monitor_stop]
@@ -119,8 +119,7 @@ sub _default
     }
 
     DEBUG && print "Proxy $heap->{name}/$state posted\n";
-    foreach my $r_state (@{$heap->{callback}})
-    {
+    foreach my $r_state (@{$heap->{callback}}) {
         $kernel->post('IKC', 'post2', $r_state, $sender, [$state, $args]);
     }
 }
@@ -152,6 +151,23 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: Proxy.pm,v $
+Revision 1.9  2002/05/02 19:35:54  fil
+Updated Chanages.
+Merged alias listing for publish/subtract
+Moved version
+
+Revision 1.8  2002/05/02 19:00:32  fil
+Fixed inform_monitor comming from IKC::Proxy/_stop.  We can't post()
+from _stop, so method call is turned into ->call().
+
+Revision 1.7  2001/09/06 23:13:42  fil
+Added doco for Responder->spawn
+Responder->spawn always returns true so that JAAS's factory doesn't complain
+
+Revision 1.6  2001/07/24 20:45:54  fil
+Fixed some win32 things like WSAEAFNOSUPPORT
+Added more tests to t/20_clientlite.t
+
 Revision 1.5  2001/07/13 06:59:45  fil
 Froze to 0.13
 

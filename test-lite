@@ -1,0 +1,25 @@
+#!/usr/bin/perl -w
+use strict;
+
+sub DEBUG () {0}
+use POE::Component::IKC::ClientLite;
+
+DEBUG and warn "$$: Connect\n";
+my $poe=create_ikc_client(
+        port=>1337,
+        name=>'LiteClient',
+    );
+
+die $POE::Component::IKC::ClientLite::error unless $poe;
+
+DEBUG and warn "$$: call\n";
+my $n=$poe->call('test/fetchQ') or die $poe->error;
+DEBUG and warn "$$: post_respond\n";
+$n=$poe->post_respond('test/add_1'=>$n) or die $poe->error;
+DEBUG and warn "$$: disconnect\n";
+$poe->{remote}{socket}->close;          # test autoreconnect
+DEBUG and warn "$$: post\n";
+$poe->post('test/here'=>$n) or die $poe->error;
+DEBUG and warn "$$: disconnect\n";
+$poe->disconnect;                       # for real
+DEBUG and warn "$$: Client exiting";
