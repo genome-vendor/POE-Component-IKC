@@ -1,7 +1,7 @@
 package POE::Component::IKC::Specifier;
 
 ############################################################
-# $Id$
+# $Id: Specifier.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
 #
 # Copyright 1999 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 
 require Exporter;
 @ISA = qw(Exporter);
-@EXPORT = qw( specifier_parse specifier_name );
-$VERSION = '0.12';
+@EXPORT = qw( specifier_parse specifier_name specifier_part);
+$VERSION = '0.13';
 
 sub DEBUG { 0 }
 
@@ -31,7 +31,12 @@ sub specifier_parse ($)
         if($specifier=~m(^poe:
                         (?:
                             (//)
-                            (\*|[-. \w]+|[a-zA-Z0-9][-.a-zA-Z0-9]+:\d+)?
+                            ((?:\*)                             |
+                             (?:[-. \w]+)                       | 
+                             (?:[a-zA-Z0-9][-.a-zA-Z0-9]+:\d+)  |
+                             (?:unix:[-.\w]+(?::\d+-\d+)?)
+                                
+                            )?
                         )?
                         (?:
                             (/)
@@ -53,6 +58,17 @@ sub specifier_parse ($)
     $specifier->{session}||='';
     $specifier->{state}||='';
     return $specifier;
+}
+
+sub specifier_part ($$)
+{
+    my($specifier, $part)=@_;
+    return if not $specifier;
+
+    $specifier="poe://$specifier" unless ref $specifier or $specifier=~/^poe:/;
+    $specifier=specifier_parse $specifier;
+    return if not $specifier;
+    return $specifier->{$part};
 }
 
 #----------------------------------------------------
@@ -78,9 +94,8 @@ sub specifier_name ($)
     if($specifier->{session})
     {
         $name.='/'.$specifier->{session};
-        $name.='/' if $specifier->{state};
     }
-    $name.=($specifier->{state}||'')    if $specifier->{state};
+    $name.="/$specifier->{state}"    if $specifier->{state};
     return $name;
 }
 
@@ -91,7 +106,7 @@ __END__
 
 =head1 NAME
 
-POE::Component::IKC::Speicier - POE Inter-Kernel Communication specifer
+POE::Component::IKC::Specifier - IKC event specifer
 
 =head1 SYNOPSIS
 
@@ -168,7 +183,7 @@ Turns a specifier into a string.
 
 =head1 AUTHOR
 
-Philip Gwyn, <fil@pied.nu>
+Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 SEE ALSO
 

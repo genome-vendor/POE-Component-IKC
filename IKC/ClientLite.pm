@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id$
+# $Id: ClientLite.pm,v 1.10 2001/07/13 06:59:45 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.12';
+$VERSION = '0.13';
 
 sub DEBUG { 0 }
 
@@ -93,8 +93,8 @@ sub connect
                                      Proto=>'tcp', Timeout=>$self->{timeout},);
         die "Unable to connect to $name: $!\n" unless $sock;
         $sock->autoflush(1);
-        local $/="\r\n";
-        local $\="\r\n";
+        local $/="\cM\cJ";
+        local $\="\cM\cJ";
         $sock->print('HELLO');
         my $resp;
         while (defined($resp=$sock->getline))       # phase 000
@@ -140,6 +140,7 @@ sub connect
 #----------------------------------------------------
 sub error
 {
+    return $_[0]->{error} if @_==1;
     return $error;
 }
 #----------------------------------------------------
@@ -179,7 +180,7 @@ sub DESTROY
 }
 sub END
 {
-    # print 'end';
+    DEBUG and print 'end';
 }
 
 #----------------------------------------------------
@@ -414,20 +415,33 @@ sub _default_freezer
   local $SIG{'__DIE__'} = 'DEFAULT';
   my $ret;
 
-  foreach my $p (qw(Storable FreezeThaw)) {
-    eval { require "$p.pm"; import $p ();};
-    warn $@ if $@;
+  foreach my $p (qw(Storable FreezeThaw POE::Component::IKC::Freezer)) {
+    my $q=$p;
+    $q=~s(::)(/)g;
+    eval { require "$q.pm"; import $p ();};
+    DEBUG and warn $@ if $@;
     return $p if $@ eq '';
   }
-  die __PACKAGE__." requires Storable or FreezeThaw\n";
+  die __PACKAGE__." requires Storable or FreezeThaw or POE::Component::IKC::Freezer\n";
 }
 
 sub _get_freezer
 {
     my($freezer)=@_;
     unless(ref $freezer) {
-      unless(exists $::{$freezer.'::'}) {
-        eval {require "$freezer.pm"; import $freezer ();};
+    my $symtable=$::{"main::"};
+    my $loaded=1;                       # find out of the package was loaded
+    foreach my $p (split /::/, $freezer) {
+        unless(exists $symtable->{"$p\::"}) {
+            $loaded=0;
+            last;
+        }
+        $symtable=$symtable->{"$p\::"};
+    }
+
+    unless($loaded) {        my $q=$freezer;
+        $q=~s(::)(/)g;
+        eval {require "$q.pm"; import $freezer ();};
         croak $@ if $@;
       }
     }
@@ -453,4 +467,183 @@ sub _get_freezer
 
 __DATA__
 
-$Log$
+
+=head1 NAME
+
+POE::Component::IKC::ClientLite - Small client for IKC
+
+=head1 SYNOPSIS
+
+    use POE::Component::IKC::ClientLite;
+
+    $poe=create_ikc_client(port=>1337);
+    die POE::Component::IKC::ClientLite::error() unless $poe;
+
+    $poe->post("Session/event", $param)
+        or die $poe->error;
+    
+    # bad way of getting a return value
+    my $foo=$poe->call("Session/other_event", $param)
+        or die $poe->error;
+
+    # better way of getting a return value
+    my $ret=$poe->post_respond("Session/other_event", $param)
+        or die $poe->error;
+
+    # make sure connectin is aliave
+    $poe->ping() 
+        or $poe->disconnect;
+
+=head1 DESCRIPTION
+
+ClientLite is a small, pure-Perl IKC client implementation.  It is very basic
+because it is intented to be used in places where POE wouldn't fit, like
+mod_perl.
+
+It handles automatic reconnection.  When you post an event, ClientLite will
+try to send the packet over the wire.  If this fails, it tries to reconnect. 
+If it can't it returns an error.  If it can, it will send he packet again.  If
+*this* fails, well, tough luck.
+
+=head1 METHODS
+
+=head2 create_ikc_client
+
+Creates a new PoCo::IKC::ClientLite object.  Parameters are supposedly
+compatible with PoCo::IKC::Client, but serializers and unix sockets aren't
+handled yet...
+
+=head2 connect
+
+    $poe->connect or die $poe->error;
+
+Connects to the remote kernel if we aren't already. You can use this method
+to make sure that the connection is open before trying anything.
+
+Returns true if connection was successful, false if not.  You can check
+C<error> to see what the problem was.
+
+
+=head2 disconnect
+
+Disconnects from remote IKC server.
+
+=head2 error
+
+    my $error=POE::Component::IKC::ClientLite::error();
+    $error=$poe->error();
+
+Returns last error.  Can be called as a object method, or as a global
+function.
+
+=head2 post
+
+    $poe->post($specifier, $data);
+
+Posts the event specified by C<$specifier> to the remote kernel.  C<$data>
+is any parameters you want to send along with the event.  It will return 1
+on success (ie, data could be sent... not that the event was received) and
+undef() if we couldn't connect or reconnect to remote kernel.
+
+=head2 post_respond
+
+    my $back=$poe->post_respond($specifier, $data);
+
+Posts the event specified by C<$specifier> to the remote kernel.  C<$data>
+is any parameters you want to send along with the event.  It waits until
+the remote kernel sends a message back and returns it's payload.  Waiting
+timesout after whatever you value you gave to C<create_ikc_client>.
+
+Events on the far side have to be aware of post_respond.  In particular,
+ARG0 is not C<$data> as you would expect, but an arrayref that contains
+C<$data> followed by a specifier that should be used to post back.
+
+    sub my_event
+    {
+        my($kernel, $heap, $args)=@_[KERNEL, HEAP, ARG0];
+        my $p=$args->[0];
+        my $heap->{rsvp}=$args->[1];
+        # .... do lotsa stuff here
+    }
+
+    # eventually, we are finished
+    sub finished
+    {
+        my($kernel, $heap, $return)=@_[KERNEL, HEAP, ARG0];
+        $kernel->post(IKC=>'post', $heap->{rsvp}, $return);
+    }
+
+=head2 call
+
+    my $back=$poe->call($specifier, $data);
+
+This is the bad way to get information back from the a remote event. 
+Follows the expected semantics from standard POE.  It works better then
+post_respond, however, because it doesn't require you to change your
+interface or write a wrapper.
+
+=head2 ping
+
+    unless($poe->ping) {
+        # connection is down!  connection is down!
+    }
+    
+Find out if we are still connected to the remote kernel.  This method will
+NOT try to reconnect to the remote server
+
+=head2 name
+
+Returns our local name.  This is what the remote kernel thinks we are
+called.  I can't really say this is the local kernel name, because, well,
+this isn't really a kernel.  But hey.
+
+=head1 AUTHOR
+
+Philip Gwyn, <perl-ikc at pied.nu>
+
+=head1 SEE ALSO
+
+L<POE>, L<POE::Component::IKC>
+
+=cut
+
+
+
+
+$Log: ClientLite.pm,v $
+Revision 1.10  2001/07/13 06:59:45  fil
+Froze to 0.13
+
+Revision 1.9  2001/07/13 01:14:00  fil
+Fixed loading of serializers that contain :: in Client and ClientLite
+Fixed serializer negociation in Channel
+
+Revision 1.8  2001/07/12 05:36:22  fil
+Added doco to ClientLite
+
+Revision 1.7  2001/07/12 04:15:17  fil
+Added small and totaly incomplete test case for IKC::ClientLite
+PoCo::IKC::ClientLite now doesn't throw warnings when it can't
+    find Storable or FreezeThaw.
+
+Revision 1.6  2001/07/12 03:49:59  fil
+Fixed bug in ClientLite for loading Freezers that have :: in their names
+
+Revision 1.5  2001/07/12 03:46:33  fil
+Added IKC::Freezer to ClientLite
+
+Revision 1.4  2001/07/12 03:42:18  fil
+Added IKC::Channel::spawn
+Fixed IKC::Channel so that you can specify what module to use for
+    serialization.
+Added IKC::Freezer
+
+Revision 1.3  2001/07/06 02:27:51  fil
+Version 0.13pre9
+
+Revision 1.2  2001/07/06 02:23:35  fil
+Fixed bunch of things in doco
+Changed my e-mail address
+
+Revision 1.1.1.1  2001/06/07 04:32:02  fil
+initial import to CVS

@@ -21,9 +21,9 @@ $|++;
 print "Creating sessions...\n";
 
 create_ikc_client(
-            port=>31337,            
-            name=>$NAME,
-            subscribe=>[qw(poe://*/timeserver)],
+        unix=>($ENV{TMPDIR}||$ENV{TEMP}||'/tmp').'/userver',    
+        name=>$NAME,
+        subscribe=>[qw(poe://*/timeserver)],
 );
 
 POE::Session->new(

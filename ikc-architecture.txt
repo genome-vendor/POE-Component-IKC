@@ -1,5 +1,8 @@
-An IKC client is the kernel that initiates the connection.
-An IKC server is the kernel that listens for new connections.
+An IKC client is a session that initiates the connection. An IKC server is a
+session that listens for new connections.  A given kernel can have both
+client and server sessions.  Each kernel is it's own process.  This gets
+confusing.  I tend to use remote and local kernel to designate which process
+i'm talking about.
 
 The client and server are nearly identical.  IKC is more of a peer-to-peer
 protocol then a client/server protocol.  After negociation, either kernel
@@ -15,11 +18,11 @@ Connection flow-chart (roughly) :
         |
  (when connected)
         |
-IKC::Daemon::create_ikc_daemon
+IKC::Channel::create_ikc_channel
         |
 Wheel::ReadWrite (w/ Filter::Line)
         |
-IKC::Daemon does negociation
+IKC::Channel does negociation
         |
 Set filter to Filter::Reference
         |
@@ -52,7 +55,7 @@ IKC::Channel       IKC::Channel       IKC::Channel       IKC::Channel
 
 
 
-Daemon negociation
+Channel negociation
 
     Server               Client
     --<-- HELLO           --<--

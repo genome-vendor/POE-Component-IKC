@@ -1,6 +1,58 @@
 Revision history for Perl extension POE::Component::IKC.
 
-0.12  19 Apr 2001
+0.13  13 July 2001
+    - Added and repaired serializer selection for clients
+    - Added doco for ClientLite
+    - Sungo is happy with this release... onto CPAN it goes.
+
+0.13pre9  5 July 2001
+    - Doco fixes
+
+0.13pre8  4 July 2001
+    - Fixed the deprecated use of defined(@array) in IKC/Responder.pm
+    - Added doco about SENDER
+    - create_ikc_channel now takes an arrayref of aliases, 
+      so that IKC::Client and IKC::Server can accept a longer list of
+      pre-defined names.
+    - IKC/post2 now expects SENDER to come before [state, args]
+    - Added doco to the effect that callback states are temporarily published
+    - Updated code that turned off the socket_factory... Dngor had
+      changed SocketFactory's implementation on me!  This is what you get
+      for doing bad stuff.
+
+0.13pre7  20 June 2001
+    - Added IKC/published, for sungo
+    - Fixed doco a bit
+    - Added a prereq for POE 0.1403
+
+0.13pre6  6 June 2001
+    - ADDED TESTS!
+        Woot woot!  Now make test verifies something meaningful.
+    - No longer thunking sessions that don't publish any states
+    - Finally did unsubscribe... turns out retract was available all along
+    - Added IKC::{Client,Proxy,Responder,Server}->spawn method, to 
+        be used in favour of create_ikc_*mumble*
+    - Added IKC/post2 .... internal use only
+    - Added FlushedState handler to IKC::Channel.  This way, wheel isn't
+        destroyed until all data is flushed.  This means you can post
+        events to remote kernels and then IKC/shutdown right away.  I hope.
+
+0.13pre5  4 June 2001
+    - Added IKC/shutdown and attendant bouffonery (see shut-{server,client})
+    - IKC::Proxy for 'poe://somekernel/somesession' is now also aliased
+      as 'somesession'
+    - Added unix-domain sockets... don't know if i've got this right
+        see u{server,client}
+
+0.13pre2-4  May 2001
+    - Fixed doco and monitor stuff
+
+0.13pre1 19 Apr 2001
+    - Added the IKC/monitor stuff
+    - Added some doco
+    - ikc-use.txt is now IKC.pod
+
+0.12  March 2001
     - Updated Changes, README.  Added FUTUR
     - Improved warning messages
     - IKC::ClientLite::disconnect no longer calls IKC/unregister to remote

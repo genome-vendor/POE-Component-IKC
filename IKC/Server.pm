@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id$
+# $Id: Server.pm,v 1.5 2001/07/13 06:59:45 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -20,14 +20,14 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use POE qw(Wheel::ListenAccept Wheel::SocketFactory);
 use POE::Component::IKC::Channel;
 use POE::Component::IKC::Responder;
-
+use POSIX qw(:errno_h);
 use POSIX qw(ECHILD EAGAIN WNOHANG);
 
 require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.12';
+$VERSION = '0.13';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -40,18 +40,30 @@ sub DEBUG_USR2 { 1 }
 sub create_ikc_server
 {
     my(%params)=@_;
-    $params{ip}||='0.0.0.0';            # INET_ANY
-    $params{port}||=603;                # POE! (almost :)
+    $params{package}||=__PACKAGE__;
+
+    unless($params{unix}) {
+        $params{ip}||='0.0.0.0';            # INET_ANY
+        $params{port}||=603;                # POE! (almost :)
+    }
+
     create_ikc_responder();
     POE::Session->new( 
-                    __PACKAGE__, [qw(
+                    $params{package}, [qw(
                         _start _stop error 
                         accept fork retry waste_time 
-                        babysit rogues
+                        babysit rogues shutdown
                         sig_CHLD sig_INT sig_USR2
                         )],
                     [\%params],
                   );
+}
+
+sub spawn
+{
+    my($package, %params)=@_;
+    $params{package}=$package;
+    create_ikc_server(%params);
 }
 
 #----------------------------------------------------
@@ -63,17 +75,29 @@ sub _select_define
     my $state;
     my $err="possible redefinition of POE internals";
     $err="failure to bind to port" if $POE::VERSION <= 0.1005;
+
     if($on) {
-        $state=$heap->{wheel}->{'state_accept'};
+        if(ref $heap->{wheel} eq 'HASH') {
+            $state=$heap->{wheel}->{'state_accept'};
+        } else {
+            $state=$heap->{wheel}->[5];
+        }
         
         unless(defined $state) {
             die "No 'state_accept' in $heap->{wheel}, $err.\n";
         }
     }
+
     my $c=0;
-    foreach my $hndl (qw(socket_handle)) {
-        next unless defined $heap->{wheel}->{$hndl};
-        $poe_kernel->select_read($heap->{wheel}->{$hndl}, $state);
+    if(ref $heap->{wheel} eq 'HASH') {
+        foreach my $hndl (qw(socket_handle)) {
+            next unless defined $heap->{wheel}->{$hndl};
+            $poe_kernel->select_read($heap->{wheel}->{$hndl}, $state);
+            $c++;
+        }
+    } 
+    else {
+        $poe_kernel->select_read($heap->{wheel}->[0], $state);
         $c++;
     }
     die "No socket_handle in $heap->{wheel}, $err.\n" unless $c;
@@ -88,16 +112,35 @@ sub _start
 {
     my($heap, $params, $kernel) = @_[HEAP, ARG0, KERNEL];
 
-    DEBUG && print "$$: Server starting $params->{ip}:$params->{port}.\n";
-                                        # create a socket factory
-    $heap->{wheel} = new POE::Wheel::SocketFactory
-    ( BindPort       => $params->{port},
-      BindAddress    => $params->{ip},
-      Reuse          => 'yes',          # and allow immediate reuse of the port
-      SuccessState   => 'accept',       # generating this event on connection
-      FailureState   => 'error'         # generating this event on error
+    # monitor for shutdown events.  
+    # this is the best way to get IKC::Responder to tell us about the 
+    # shutdown
+    $kernel->post(IKC=>'monitor', '*', {shutdown=>'shutdown'});
+
+    my $n='unknown';     
+    my %wheel_p=(
+        Reuse          => 'yes',        # and allow immediate reuse of the port
+        SuccessState   => 'accept',     # generating this event on connection
+        FailureState   => 'error'       # generating this event on error
     );
+    if($params->{unix}) {
+        $n="unix:$params->{unix}";
+        $wheel_p{SocketDomain}=AF_UNIX;
+        $wheel_p{BindAddress}=$params->{unix};
+        $heap->{unix}=$params->{unix};
+        unlink $heap->{unix};           # blindly do this ?
+    } 
+    else {
+        $n="$params->{ip}:$params->{port}";
+        $wheel_p{BindPort}= $params->{port};
+        $wheel_p{BindAddress}= $params->{ip};
+    }
+    DEBUG && print "$$: Server starting $n.\n";
+
+                                        # create a socket factory
+    $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
+    $heap->{aliases}=$params->{aliases};
 
     return unless $params->{processes};
 
@@ -106,8 +149,8 @@ sub _start
     # Children put the state back in place after the fork
     _select_define($heap, 0);
 
-    $kernel->sig('CHLD', 'sig_CHLD');
-    $kernel->sig('INT', 'sig_INT');
+    $kernel->sig(CHLD => 'sig_CHLD');
+    $kernel->sig(INT  => 'sig_INT');
     DEBUG_USR2 and $kernel->sig('USR2', 'sig_USR2');
 
                                         # keep track of children
@@ -323,7 +366,23 @@ sub _stop
             kill 2, $_ or warn "$$: $_ $!\n";
         }
     }
+    if($heap->{unix}) {
+        unlink $heap->{unix};
+    }
     DEBUG && print "$$: server is stoping\n";
+}
+
+#------------------------------------------------------------------------------
+sub shutdown
+{
+    my($kernel, $heap)=@_[KERNEL, HEAP];
+
+    delete $heap->{wheel};      # close socket
+    if($heap->{children} and %{$heap->{children}}) {
+        $kernel->delay('rogues');   # we no longer care about rogues
+    }
+    $kernel->delay('waste_time');   # get it OVER with
+    $heap->{'die'}=1;               # prevent race conditions
 }
 
 #----------------------------------------------------
@@ -334,9 +393,11 @@ sub _stop
 sub error 
 {
     my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+    # TODO : post to monitors
     warn __PACKAGE__, " encountered $operation error $errnum: $errstr\n";
-    if($errnum==98) {       # EADDRINUSE
+    if($errnum==EADDRINUSE) {       # EADDRINUSE
         $heap->{'die'}=1;
+        delete $heap->{wheel};
     }
 }
 
@@ -350,10 +411,16 @@ sub accept
             @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
 
     if(DEBUG) {
+        if($peer_port) {        
             print "$$: Server connection from ", inet_ntoa($peer_host), 
                             ":$peer_port", 
                             ($heap->{'is a child'}  ? 
                             " (Connection $heap->{connections})\n" : "\n");
+        } else {
+            print "$$: Server connection over $heap->{unix}",
+                            ($heap->{'is a child'}  ? 
+                            " (Connection $heap->{connections})\n" : "\n");
+        }
     }
     if($heap->{children} and not $heap->{'is a child'}) {
         warn "$$: Parent process received a connection: THIS SUCKS\n";
@@ -361,8 +428,10 @@ sub accept
         return;
     }
                                         # give the connection to a channel
-    create_ikc_channel($handle, $heap->{name});
-
+    POE::Component::IKC::Channel->spawn(
+                handle=>$handle, name=>$heap->{name},
+                unix=>$heap->{unix}, aliases=>$heap->{aliases});
+        
     return unless $heap->{children};
 
     if ($heap->{'is a child'}) {
@@ -607,11 +676,21 @@ Address to listen on.  Can be a doted-quad ('127.0.0.1') or a host name
 
 Port to listen on.  Can be numeric (80) or a service ('http').
 
+=item C<unix>
+
+Path to the unix-socket to listen on.  Note: this path is unlinked before 
+socket is attempted!  Buyer beware.
+
 =item C<name>
 
 Local kernel name.  This is how we shall "advertise" ourself to foreign
 kernels. It acts as a "kernel alias".  This parameter is temporary, pending
 the addition of true kernel names in the POE core.
+
+=item C<aliases>
+
+Arrayref of even more aliases for this kernel.  Fun Fun Fun!
+
 
 =item C<verbose>
 
@@ -637,6 +716,13 @@ child).
 
 =back
 
+=head1 EVENTS
+
+=item shutdown
+
+This event causes the server to close it's socket and skiddadle on down the
+road.  Normally it is only posted from IKC::Responder.
+
 =head1 BUGS
 
 Preforking is something of a hack.  In particular, you must make sure that
@@ -646,7 +732,7 @@ multicast events, I'll change this behaviour.
 
 =head1 AUTHOR
 
-Philip Gwyn, <fil@pied.nu>
+Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 SEE ALSO
 

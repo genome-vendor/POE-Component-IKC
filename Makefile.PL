@@ -6,5 +6,5 @@ WriteMakefile(
     'VERSION_FROM' => 'IKC/Server.pm', # finds $VERSION
     DISTNAME => 'POE-Component-IKC',
     dist=>{COMPRESS=>'gzip -9f', EXT=>'gz'},
-    PREREQ_PM =>{POE=>0.0906},
+    PREREQ_PM =>{POE=>0.1403},
 );

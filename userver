@@ -14,7 +14,7 @@ use POE::Component::IKC::Specifier;
 
 
 create_ikc_server(
-    port=>31337,                # elite--
+    unix=>($ENV{TMPDIR}||$ENV{TEMP}||'/tmp').'/userver',    
     name=>'Pulse');       
 
 POE::Session->new
@@ -80,8 +80,7 @@ sub time_disconnect
 sub kernel_unregister
 {
     my($heap, $name, $real_name)=@_[HEAP, ARG0, ARG1];
-    warn "$name == $real_name\n";
-    print "Remote kernel $real_name went bye-bye *snif*\n";
+    print "$real_name went away. *snif*\n";
     delete $heap->{listeners}{$name};    
 }
 
@@ -92,14 +91,14 @@ sub kernel_unregister
 sub debug_unregister
 {
     my($heap, $name, $real)=@_[HEAP, ARG1, ARG2];
-    print "Remote kernel ", ($real ? '' : "alias "), "$name went bye-bye\n";
+    print "- Remote kernel ", ($real ? '' : "alias "), "$name went bye-bye\n";
 }
 
 #############################################
 sub debug_register
 {
     my($heap, $name, $real)=@_[HEAP, ARG1, ARG2];
-    print "Remote kernel ", ($real ? '' : 'alias '), "$name went HELLO!\n";
+    print "- Remote kernel ", ($real ? '' : 'alias '), "$name went HELLO!\n";
 }
 
 

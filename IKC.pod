@@ -1,13 +1,18 @@
-Basic use :
------------
-For a IKC server 
+=head1 NAME
+
+POE::Component::IKC -- POE Inter-Kernel Communication
+
+=head1 SYNOPSIS
+
+=head2 For a IKC server 
 
     use POE::Component::IKC::Server;
     # create all your sessions
     create_ikc_server(port=>30, name=>'Server'); # more options are available
     $poe_kernel->run();
 
-For an IKC client :
+
+=head2 For an IKC client
 
     create_ikc_client(host=>name, port=>30, name=>'Client', 
                 on_connect=>\&build);
@@ -19,13 +24,17 @@ For an IKC client :
     }
 
 
-Post a state on a foreign kernel
+=head2 Post a state on a foreign kernel
 
     $kernel->post('IKC', 'post', "poe://Server/session/state", $ONE_arg);
 
-The IKC is peer-to-peer.  Server can post to client.
+=head2 The IKC is peer-to-peer.  
+
+Server can post to client.
 
     $kernel->post('IKC', 'post', 'poe://Client/session/state', $ONE_arg);
+
+=head2 Call a state on a remote kernel
 
 Call semantics are impossible, because they would cause POE to block.  IKC
 call is a bit different.  It is a 'post', but with an extra RSVP parameter.
@@ -44,19 +53,21 @@ Note : if you use ->call('IKC'), it will return the number of foreign kernels
 the state was sent to.  This is a handy way to find out if you are still
 connected to a foreign kernel.
 
+=head2 A little magic
+
 If a state is posted by a foreign kernel, $_[SENDER] is only valid during
 that state.  However, you will be able to post back to it.
 
     $kernel->post($_[SENDER], 'something', 'the answer is foo');
-    # ** untested **
 
-Publish/subscribe :
--------------------
+The remote caller MUST have published states for them to be callable, eh?
+
+=head2 PUBLISH / SUBSCRIBE
 
 First, a session must publish some states :
 
-    $kernel->post('IKC', 'publish', [qw(state1 state2 state3 state4)], 
-                    'session_alias');
+    $kernel->post('IKC', 'publish', 'session_alias',
+                        [qw(state1 state2 state3 state4)], );
 
 Then a foreign kernel will subscribe to a session :
 
@@ -74,13 +85,14 @@ After subscription, the session can be accessed like any old session, though
 
 Of course, attempting to post to a proxy session before it is created will
 be problematic.  To be alerted when the proxy session is created, a callback
-state may be specified
+state may be specified, 
 
     $kernel->post('IKC', 'subscribe', [qw(poe://*/timeserver)], 
             'timeserver_subscribed');
 
 The callback will be called with a list of all the sessions that it managed
-to subscribe to.  You should check this list before continuing.
+to subscribe to.  You should check this list before continuing.  Better yet, 
+you could use the IKC monitor (see below).
 
 One can also let create_ikc_client deal with all the details.
 
@@ -96,12 +108,68 @@ If multiple foreign kernels where quieried for a session (as is the case
 above), subscription is deemed to succeed if at least one foreign kernel
 accepts the subscription.
 
+To undo things :
+
+    $kernel->post(IKC=>'retract', 'session_alias'=>[qw(states)]);
+
+    $kernel->post(IKC=>'unsubscribe', [qw(poe://Pulse/timeserver)]);
+
+
+=head2 MONITOR
+
+Say you wanted to monitor all remote kernels that connect to you:
+
+    $kernel->post(IKC=>'monitor', '*'=>{register=>'some_event'});
+
+    sub some_event
+    {
+        my($name, $real)=@_[ARG1, ARG2];
+        print "- Remote kernel ", ($real ? '' : "alias "), "$name connected\n";
+    }
+
+Later, you want to know when a given remote session disconnects:
+
+    $kernel->post(IKC=>'monitor', some_kernel=>{unregister=>'bye_bye'});
+
+Or maybe you think a session should clean up and leave whenever IKC
+does.
+
+    $kernel->post(IKC=>'monitor', '*'=>{shutdown=>'other_event'});
+
+    sub other_event
+    {
+        # kill wheels, alarms, selects and aliases here
+    }
+                    
+See L<POE::Component::IKC::Responder> for more details.
+
+
+=head2 SHUTDOWN
+
+When you feel the time is right and you want to get rid of all IKC-related
+sessions, just do the following:
+
+    $kernel->post(IKC=>'shutdown');     
+
+And they should all disapear.  At worst, some will still have registered
+alises, but this won't prevent the kernel from exiting.
+
+
+=head1 DESCRIPTION
+
+This a first draft if Inter-Kernel Communication for POE.  It is intended
+as a point of reference for discusion of issues involved. 
+
+Look in L<POE::Component::IKC::Responder> for all the states that IKC
+"exposes".
 
 
 
 
-The reverse operations (retract and unsubscribe) aren't currently working.
+=head1 NOTES
 
 Yes, this is all very messy. :(
 
--Philip
+=head2 AUTHOR
+
+Philip <perl-ikc at pied.nu>

@@ -1,6 +1,8 @@
-- Orderly shutdown of IKC::Server
+- extend the monitor stuff
+    - socket errors
+    - remote_subscribe/remote_unsubscribe
 
-- Filter::Reference freezer type negociation
+- Other IKC then just INET and UNIX domain sockets (IPC, Pipes, FIFOs)
 
 - Kernel and Session  naming needs to be resolved.
     $poe_kernel->{name} should return a unique name.
@@ -10,11 +12,10 @@
     (We can't use strinified reference, because perl re-uses them too 
     quickly.)
 
+    Sloved with $kernel->ID and $session->ID.... I hope
+
 - Global event naming scheme
     This will also make documentation and discussions easier.
-
-- IKC::Responder 'call' event
-    The rsvp needs session and kernel names.
 
 - Access restrictions
     Currently all a foreign kernel can post events to any session w/in
@@ -41,25 +42,32 @@
 
 
 
-- POE::Carp
-    POE needs a general exception handling mechanism.  This will allow us
-    to send better diagnostic messages back to foreign kernels.
+Looking wider :
 
-- IKC clusters
+- POE::Carp  AKA MONITORING
+    POE needs a general exception handling mechanism.  This will allow us
+    to send better diagnostic messages back to foreign kernels.  Maybe
+    something along the lines of the monitor stuff.
+
+- IKC clouds
     I envision a multiply connected network of IKC servers, one per host.  A
     IKC server would need to be able to find at least one other IKC server. 
     After connecting, they would send each other all the kernels they know
     about, and how to connect to each of them.
 
     A kernel that wants to expose sessions and events to foreign kernels
-    (let's call it a IKC module) would only connect to the latest IKC
+    (let's call it a IKC module) would only connect to the nearest IKC
     server, which would take care of propogating the information to the
     other servers in the cluster).
 
     This will allow us to implement load balancing, rollover,
-    high-availablility and other buzz-words.
+    high-availablility and other buzz-words.  And remote CONFIGS!  See next
+    item
 
 - Automagical IKC
     /etc/poe.conf or ~/.poe.conf could have all the params needed for
     connecting to the IKC cluster.
 
+    Cf Stem: it has a nice config-driven way of doing things (local config,
+    ARGS config and even remote config).  This is similar, but better, then
+    the POE::Interface (a la IDL) idea I had at the begining.
