@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.09';
+$VERSION = '0.12';
 
 sub DEBUG { 0 }
 
@@ -93,8 +93,8 @@ sub connect
                                      Proto=>'tcp', Timeout=>$self->{timeout},);
         die "Unable to connect to $name: $!\n" unless $sock;
         $sock->autoflush(1);
-        my($ors, $irs)=($sock->output_record_separator("\r\n"), 
-                        $sock->input_record_separator("\r\n"));
+        local $/="\r\n";
+        local $\="\r\n";
         $sock->print('HELLO');
         my $resp;
         while (defined($resp=$sock->getline))       # phase 000
@@ -126,8 +126,6 @@ sub connect
         chomp($resp=$sock->getline);
         die "Phase 003: $!\n" unless defined $resp;
         die "Didn't get UP from $name\n" unless $resp eq 'UP';        
-        $sock->output_record_separator($ors);
-        $sock->input_record_separator($irs);
     };
     if($@)
     {
@@ -167,7 +165,9 @@ sub ping
 sub disconnect
 {
     my($self)=@_;
-    $self->post('IKC/unregister', $self->{name}) if $self->{remote};
+    # 2001/01 why did we try to unregister ourselves?  unregister wouldn't
+    # be safe for remote kernels anyway
+    # $self->call('IKC/unregister', $self->{name}) if $self->{remote};
     delete @{$self->{remote}}{qw(socket connected name aliases)};
     $self->{remote}={};
 }
@@ -217,21 +217,23 @@ sub call
     my($self, $spec, $params)=@_;
     $spec="poe://$self->{remote}{name}/$spec" unless ref $spec or $spec=~m(^poe:);
 
-    my $ret;
     my $rsvp={kernel=>$self->{name}, session=>'IKCLite',
               state=>'response'.$request++};
-    $ret=eval { 
-        return unless $self->_try_send({event=>$spec, params=>$params, 
-                                        rsvp=>$rsvp
-                                       }); 
+    
+    my $req={event=>$spec, params=>$params, 
+             rsvp=>$rsvp, 'wantarray'=>wantarray(),
+            };
+    my @ret=eval { 
+        return unless $self->_try_send($req); 
         DEBUG && print "Waiting for response...\n";
-        return $self->_response($rsvp);
+        return $self->_response($rsvp, $req->{wantarray});
     };
     if($@) {
         $self->{error}=$error=$@;
         return;
     }
-    return $ret;
+    return @ret if $req->{wantarray};
+    return $ret[0];
 }
 
 #----------------------------------------------------
@@ -268,8 +270,7 @@ sub _try_send
 
     my $ret=$self->_send_msg($msg);
     DEBUG && print "Sending message...\n";
-    if(defined $ret and $ret==0)
-    {
+    if(defined $ret and $ret==0) {
         return 0 unless $self->connect();
         DEBUG && print "Retry message...\n";
         $ret=$self->_send_msg($msg);
@@ -317,7 +318,7 @@ sub _send_msg
 #----------------------------------------------------
 sub _response
 {
-    my($self, $rsvp)=@_;
+    my($self, $rsvp, $wantarray)=@_;
 
     $rsvp=specifier_parse($rsvp);
     my $remote=$self->{remote};
@@ -368,7 +369,7 @@ sub _response
             my $to=specifier_parse($msg->{event});
             DEBUG && print Dumper $msg;
 
-            die $msg->{params} if($msg->{is_error});    # throw an error out
+            die "$msg->{params}\n" if($msg->{is_error});    # throw an error out
             DEBUG && print "Not an error...\n";
 
                 # make sure it's what we're waiting for...
@@ -385,6 +386,11 @@ sub _response
                      specifier_name($rsvp). "\n";
                 DEBUG && print "Not for us!  ($to->{session}/$to->{state})...\n";
                 next;
+            }
+
+            if($wantarray) {
+                DEBUG and print "Wanted an array\n";
+                return @{$msg->{params}} if ref $msg->{params} eq 'ARRAY';
             }
             return $msg->{params};              # finaly!
         }

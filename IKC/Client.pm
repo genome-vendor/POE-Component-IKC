@@ -23,7 +23,7 @@ use POE::Component::IKC::Channel;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.09';
+$VERSION = '0.12';
 
 sub DEBUG { 0 }
 

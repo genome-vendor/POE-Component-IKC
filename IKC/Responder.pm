@@ -25,7 +25,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.09';
+$VERSION = '0.12';
 
 sub DEBUG { 0 }
 
@@ -61,7 +61,7 @@ sub _start
 
 sub _stop
 {
-#    warn "$_[HEAP] responder _stop\n";
+#    warn "$$: $_[HEAP] responder _stop\n";
 }
 
 #----------------------------------------------------
@@ -136,7 +136,7 @@ sub remote_error
 {
     my($heap, $msg) = @_[HEAP, ARG0];
 
-    warn "Remote error: $msg\n";
+    warn "$$: Remote error: $msg\n";
 }
 
 ##############################################################################
@@ -254,6 +254,7 @@ sub new
             'local'=>{IKC=>{remote_error=>1, # these states are auto-published
                             do_you_have=>1,
                             ping=>1,
+#                            unregister=>1,
                            },
                      },
             remote=>{},
@@ -277,8 +278,8 @@ sub request
     # We ignore the kernel for now, but we should really use it to decide
     # weither we should run the request or not
     my $to=specifier_parse($request->{event});
-    eval
-    {
+
+    eval {
         die "$request->{event} isn't a valid specifier" unless $to;
         my $args=$request->{params};
         # allow proxied states to have multiple ARGs
@@ -309,12 +310,11 @@ sub request
                 $to->{state}, "'\n";
         }
 
-
         my $session=$kernel->alias_resolve($to->{session});
         die "Unknown session '$to->{session}'\n" unless $session;
 
-        _thunked_post($request->{rsvp},
-                      [$session, $to->{state}, @$args], $request->{from});
+        _thunked_post($request->{rsvp}, [$session, $to->{state}, @$args], 
+                      $request->{from}, $request->{wantarray});
     };
 
 
@@ -325,7 +325,10 @@ sub request
     {
         chomp($@);
         my $err=$@.' ['.specifier_name($to).']';
-        DEBUG && warn "Error in request: $err\n";
+        $err.=' sent by ['.specifier_name($request->{from}).']'
+                                                    if $request->{from};
+        warn $err;
+        DEBUG && warn "$$: Error in request: $err\n";
         unless($request->{is_error})    # don't send an error message back
         {                               # if this was an error itself
             $self->send_msg({ event=>$request->{errors_to},
@@ -333,7 +336,7 @@ sub request
                             });
         } else
         {
-            warn Dumper $request;
+            warn $$,  Dumper $request;
         }
     }
 }
@@ -487,8 +490,8 @@ sub send_msg
     unless(@channels)
     {
         warn (($name eq '*') 
-                  ? "Not connected to any foreign kernels.\n" 
-                  : "Unknown kernel '$name'.\n");
+                  ? "$$: Not connected to any foreign kernels.\n" 
+                  : "$$: Unknown kernel '$name'.\n");
         return 0;
     }
 
@@ -522,7 +525,7 @@ sub send_msg
     }
 
     DEBUG2 && print specifier_name($to), " sent to $count kernel(s).\n";
-    DEBUG and do {warn "send_msg failed!" unless $count};
+    DEBUG and do {warn "$$: send_msg failed!" unless $count};
     return $count;
 }
 
@@ -575,17 +578,17 @@ sub call
     {
         if($rsvp)
         {
-            warn "Bad 'rsvp' parameter '$rsvp' in poe:/IKC/call\n";
+            warn "$$: Bad 'rsvp' parameter '$rsvp' in poe:/IKC/call\n";
         } else
         {
-            warn "Missing 'rsvp' parameter in poe:/IKC/call\n";
+            warn "$$: Missing 'rsvp' parameter in poe:/IKC/call\n";
         }
         return;
     }
     $rsvp=$t;
     unless($rsvp->{state})
     {
-        warn "rsvp state not set in poe:/IKC/call\n";
+        warn "$$: rsvp state not set in poe:/IKC/call\n";
         return;
     }
 
@@ -777,7 +780,7 @@ sub _subscribe_receipt
 
     if(not $ses or not ref $ses)
     {
-        warn "Refused to subscribe to $spec\n";
+        warn "$$: Refused to subscribe to $spec\n";
         $accepted=0;
     } else
     {
@@ -880,22 +883,29 @@ sub DEBUG { 0 }
 
 sub _start
 {
-    my($kernel, $heap, $name, $caller, $args, $foreign)=
-                @_[KERNEL, HEAP, ARG0, ARG1, ARG2, ARG3];
-    $heap->{rsvp}=$foreign;
+    my($kernel, $heap,          $name, $caller, $args, $rsvp, $wantarray)=
+                @_[KERNEL, HEAP, ARG0, ARG1,    ARG2,  ARG3,  ARG4];
+    $heap->{rsvp}=$rsvp;
     $heap->{name}=$name;
 
     DEBUG && print "$name created\n";
 
-    if($caller)                             # foreign session wants return
-    {
-        my $ret=$kernel->call(@$args);
-        if(defined $ret) {
-            DEBUG && print "Posted response '$ret' to ", Dumper $caller;
-            $kernel->post('IKC', 'post', $caller, $ret) ;
+    if($caller) {                           # foreign session wants return
+        
+        DEBUG and do { warn "Wants an array" if $wantarray};
+
+        my @ret;
+        @ret=$kernel->call(@$args) if $wantarray;
+        $ret[0]=$kernel->call(@$args) unless $wantarray;
+        if(defined @ret) {
+            local $"=', ';
+            DEBUG && print "Posted response '@ret' to ", Dumper $caller;
+            
+            $kernel->post('IKC', 'post', $caller, 
+                                ($wantarray ? \@ret : $ret[0]));
         }
-    } else
-    {
+    } 
+    else {
         $kernel->call(@$args);
     }
     return;
@@ -912,7 +922,7 @@ sub _default
             @_[KERNEL, HEAP, SENDER, ARG0, ARG1];
     return if $state =~ /^_/;
 
-    warn "Attempt to respond to a foreign post with $state\n"
+    warn "$$: Attempt to respond to a foreign post with $state\n"
         if not $heap->{rsvp};
 
     $POE::Component::IKC::Responder::ikc->send_msg(

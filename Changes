@@ -1,5 +1,24 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.12  19 Apr 2001
+    - Updated Changes, README.  Added FUTUR
+    - Improved warning messages
+    - IKC::ClientLite::disconnect no longer calls IKC/unregister to remote
+      (doing it was unneed, server does it automatically when socket dies)
+
+0.11  Nov 16 2000
+    - IKC/ClientLite now sets $/ and $\ to "\r\n"
+    - wantarray() now gets propagated... is this tested?
+    - babysitting now knows of "defunct" children
+    - children now turn off SIGCHLD and SIGINT... dunce :)
+    - check_kernel debuging subroutine
+
+0.10  May 26 2000
+    - Added $$ to all the warnings to help isolate problems
+    - Converted IKC::Server to package methods
+    - Split signals into sig_INT, sig_CHLD...
+    - Improved babysitting code (rogues)
+
 0.09  24 May 2000
     - Fixed things that POE 0.0906 broke
     - Added more babysitting code to pre-forking server.  Will document soon.

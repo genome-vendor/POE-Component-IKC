@@ -1,3 +1,5 @@
+- Orderly shutdown of IKC::Server
+
 - Filter::Reference freezer type negociation
 
 - Kernel and Session  naming needs to be resolved.
@@ -36,13 +38,6 @@
 - Lazy Proxy creation
     When someone does a $kernel->alias_resolve(), the kernel could query
     foreign kernels if they have the given session alias.
-
-- IKC::LiteClient
-    POE is relatively heavy.  I want to be able to access POE servers from
-    CGI or HTML::Mason.  LiteClient would be a blocking, POE-free
-    implementation of IKC.  Unfortunately, this means we'll have to 
-    duplicate the code for the negociation phase :(  Maybe a better idea
-    would be to have a "lite" negociation phase also.
 
 
 

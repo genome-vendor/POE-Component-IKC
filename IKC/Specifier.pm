@@ -16,7 +16,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw( specifier_parse specifier_name );
-$VERSION = '0.09';
+$VERSION = '0.12';
 
 sub DEBUG { 0 }
 

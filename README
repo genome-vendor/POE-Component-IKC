@@ -3,11 +3,9 @@ as a point of reference for discusion of issues involved.
 
 As "Mythical Man Month" says : Plan to throw one away.
 
-You will need to patch POE 0.06_06 with the included patch for this to work.
-Order of patching :
-philip_gwyn-set_filter-3.patch
-philip_gwyn-ref_filter_type-1.patch
-philip_gwyn-kr_ses_IDs.2.patch
+
+You will need the latest version of POE.  IKC has a sneaky way of
+discovering bugs and lacunae in POE :)
 
 
 Quick test :
@@ -20,6 +18,12 @@ Better yet, run ./server and ./client in seperate windows.  ./client should
 output a . every 10 seconds.  Running many clients will give you an idea of
 the overhead :)
 
-IKC probably isn't worth a make install this just yet.
+STABILITY 
+
+I use IKC full time on my sites (for example, http://www.camelot.ca/) so I'd
+say it is "stable enough if you know what you're doing", even if it doesn't
+implement my full original vision.  I use IKC::ClientLite in mod_perl to
+talk to POE-based "application servers".
+
 
 -Philip Gwyn, <fil@pied.nu>

@@ -26,7 +26,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.09';
+$VERSION = '0.12';
 
 sub DEBUG { 0 }
 
@@ -397,13 +397,13 @@ sub channel_error
     my ($heap, $kernel, $operation, $errnum, $errstr) =
         @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
 
-    if ($errnum) 
-    {
-        DEBUG && print "Channel encountered $operation error $errnum: $errstr\n";
+    if ($errnum) {
+        # DEBUG && 
+        print "Channel encountered $operation error $errnum: $errstr\n";
     }
-    else 
-    {
-        DEBUG && print "The channel's client closed its connection ($heap->{kernel_name}<->$heap->{remote_kernel})\n";
+    else {
+        DEBUG && 
+            print "The channel's client closed its connection ($heap->{kernel_name}<->$heap->{remote_kernel})\n";
     }
     $kernel->call('IKC', 'unregister', $heap->{remote_aliases});
     delete $heap->{remote_aliases};
