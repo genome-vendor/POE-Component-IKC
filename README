@@ -1,0 +1,25 @@
+This a first draft if Inter-Kernel Communication for POE.  It is intended
+as a point of reference for discusion of issues involved.  
+
+As "Mythical Man Month" says : Plan to throw one away.
+
+You will need to patch POE 0.06_06 with the included patch for this to work.
+Order of patching :
+philip_gwyn-set_filter-3.patch
+philip_gwyn-ref_filter_type-1.patch
+philip_gwyn-kr_ses_IDs.2.patch
+
+
+Quick test :
+perl Makefile.PL
+make
+./server & ./client
+... and wait 
+
+Better yet, run ./server and ./client in seperate windows.  ./client should
+output a . every 10 seconds.  Running many clients will give you an idea of
+the overhead :)
+
+IKC probably isn't worth a make install this just yet.
+
+-Philip Gwyn, <fil@pied.nu>

@@ -1,0 +1,107 @@
+Basic use :
+-----------
+For a IKC server 
+
+    use POE::Component::IKC::Server;
+    # create all your sessions
+    create_ikc_server(port=>30, name=>'Server'); # more options are available
+    $poe_kernel->run();
+
+For an IKC client :
+
+    create_ikc_client(host=>name, port=>30, name=>'Client', 
+                on_connect=>\&build);
+    $poe_kernel->run();
+
+    sub build
+    {
+        # create sessions that depend on the foreign kernel.
+    }
+
+
+Post a state on a foreign kernel
+
+    $kernel->post('IKC', 'post', "poe://Server/session/state", $ONE_arg);
+
+The IKC is peer-to-peer.  Server can post to client.
+
+    $kernel->post('IKC', 'post', 'poe://Client/session/state', $ONE_arg);
+
+Call semantics are impossible, because they would cause POE to block.  IKC
+call is a bit different.  It is a 'post', but with an extra RSVP parameter.
+
+    $kernel->post('IKC', 'call', 'poe://Server/hello/world', $ONE_arg, 
+                  'callback');
+
+This will cause the returned value of the foreign state to be sent to state
+'callback' in the current session.  You may want the callback to be in
+another session, but I don't think this is a good idea.
+
+    $kernel->post('IKC', 'call', 'poe://Server/hello/world', $ONE_arg, 
+                  'poe:/elsewhere/hi');
+
+Note : if you use ->call('IKC'), it will return the number of foreign kernels 
+the state was sent to.  This is a handy way to find out if you are still
+connected to a foreign kernel.
+
+If a state is posted by a foreign kernel, $_[SENDER] is only valid during
+that state.  However, you will be able to post back to it.
+
+    $kernel->post($_[SENDER], 'something', 'the answer is foo');
+    # ** untested **
+
+Publish/subscribe :
+-------------------
+
+First, a session must publish some states :
+
+    $kernel->post('IKC', 'publish', [qw(state1 state2 state3 state4)], 
+                    'session_alias');
+
+Then a foreign kernel will subscribe to a session :
+
+    # Look for a session on all known foreign kernels
+    $kernel->post('IKC', 'subscribe', [qw(poe://*/session_alias/)]);
+    # Look for a session on a specific foreign kernel
+    $kernel->post('IKC', 'subscribe', [qw(poe://Pulse/timeserver)]);
+    # Make sure the session has a given state
+    $kernel->post('IKC', 'subscribe', [qw(poe://*/timeserver/connect)]);
+
+After subscription, the session can be accessed like any old session, though
+->call() acts the same as ->post() for obvious reasons :
+
+    $kernel->post('poe:/Pulse/timeserver', 'state', $arg1, $arg2...);
+
+Of course, attempting to post to a proxy session before it is created will
+be problematic.  To be alerted when the proxy session is created, a callback
+state may be specified
+
+    $kernel->post('IKC', 'subscribe', [qw(poe://*/timeserver)], 
+            'timeserver_subscribed');
+
+The callback will be called with a list of all the sessions that it managed
+to subscribe to.  You should check this list before continuing.
+
+One can also let create_ikc_client deal with all the details.
+
+    create_ikc_client(
+            port=>31337, name=>$name,
+            subscribe=>[qw(poe://*/timeserver)],
+            on_connect=>\&create_me,
+        );
+
+'on_connect' is only called when all the subscriptions have either been
+accepted.  If a subscription was refused, create_ikc_client will give up. 
+If multiple foreign kernels where quieried for a session (as is the case
+above), subscription is deemed to succeed if at least one foreign kernel
+accepts the subscription.
+
+
+
+
+
+The reverse operations (retract and unsubscribe) aren't currently working.
+
+Yes, this is all very messy. :(
+
+-Philip

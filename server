@@ -1,0 +1,91 @@
+#!/usr/bin/perl -w
+use strict;
+
+use lib qw(blib/lib blib/arch);
+
+use POE qw(Session);
+use POE::Component::IKC::Server;
+use POE::Component::IKC::Specifier;
+
+# Very simple time pulse session
+# Foreign sessions connect to it via 'connect' events and
+# disconect with 'disconnect'.
+# Every 10 seconds, a 'pulse' event is sent to connected sessions.
+
+
+create_ikc_server(
+    port=>31337,                # elite--
+    name=>'Pulse');       
+
+POE::Session->new
+(
+    _start=>\&time_start,
+#    _stop=>\&time_stop,
+    'connect'=>\&time_connect,
+    'disconnect'=>\&time_disconnect,    
+    'pulse'=>\&time_pulse,
+    'time'=>\&time_time,
+);
+
+print "Running server...\n";
+$poe_kernel->run();
+print "Server exited...\n";
+
+#############################################
+sub time_start
+{
+    my($kernel, $heap)=@_[KERNEL, HEAP];
+    $heap->{listeners}={};
+    $kernel->alias_set('timeserver');
+    $kernel->delay('pulse', 10-(time%10));
+    $kernel->call('IKC', 'publish',  'timeserver',
+            [qw(connect disconnect time)]);
+}
+
+#############################################
+sub time_stop
+{
+    my($heap)=$_[HEAP];
+    $heap->{listeners}={};
+}
+
+#############################################
+sub time_connect
+{
+    my($kernel, $heap, $dest)=@_[KERNEL, HEAP, ARG0];
+    my $name=specifier_name($dest);
+    print "Connected $name\n";
+    $heap->{listeners}->{$name}=$dest;
+}
+
+#############################################
+sub time_disconnect
+{
+    my($kernel, $heap, $dest)=@_[KERNEL, HEAP, ARG0];
+    my $name=specifier_name($dest);
+    print "Disconnected $name\n";
+    delete $heap->{listeners}->{$name};
+}
+
+#############################################
+sub time_pulse
+{
+    my($kernel, $heap)=@_[KERNEL, HEAP];
+    my $now=localtime;
+    $kernel->delay('pulse', 10-(time%10));
+
+    while(my($name, $dest)=each %{$heap->{listeners}})
+    {
+        print "$name -- $now\n";
+        $kernel->call('IKC', 'post', $dest, $now)
+                or $kernel->yield('disconnect', $dest);
+    }
+    return;
+}
+
+#############################################
+sub time_time
+{
+    print "Sending time...\n";
+    return ''.localtime();
+}

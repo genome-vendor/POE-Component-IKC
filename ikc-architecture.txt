@@ -1,0 +1,83 @@
+An IKC client is the kernel that initiates the connection.
+An IKC server is the kernel that listens for new connections.
+
+The client and server are nearly identical.  IKC is more of a peer-to-peer
+protocol then a client/server protocol.  After negociation, either kernel
+can send an event request to the other kernel.
+
+Connection flow-chart (roughly) :
+
+    IKC::Server                                 IKC::Client
+        |                                            |
+ Wheel::SocketFactory                                |
+        |                                            |
+        +--------------------------------------------+
+        |
+ (when connected)
+        |
+IKC::Daemon::create_ikc_daemon
+        |
+Wheel::ReadWrite (w/ Filter::Line)
+        |
+IKC::Daemon does negociation
+        |
+Set filter to Filter::Reference
+        |
+create_ikc_responder()
+        |
+Register foreign kernels
+        |
+        +-------------------(IKC::Client) -----------+
+        |                                            |
+      Done                                on_connect sub ref called
+                                                     |
+                                                    Done
+
+
+Data flow after Client <-> Server connection is established :
+
+ Driver::SysRW      Driver::SysRW      Driver::SysRW      Driver::SysRW
+      |                  |                  |                  |
+Filter::Reference  Filter::Reference  Filter::Reference  Filter::Reference
+      |                  |                  |                  |
+Wheel::ReadWrite   Wheel::ReadWrite   Wheel::ReadWrite   Wheel::ReadWrite
+      |                  |                  |                  |
+IKC::Channel       IKC::Channel       IKC::Channel       IKC::Channel
+      |                  |                  |                  |
+      +------------------+--------+---------+------------------+
+                                  |
+                            IKC::Responder
+                                  |
+                          All other Sessions
+
+
+
+Daemon negociation
+
+    Server               Client
+    --<-- HELLO           --<--
+    -->-- IAM KernelName1 -->--
+    --<-- OK              --<--
+    -->-- IAM OtherName1  -->--
+    --<-- OK              --<--
+     ....(more kernel names)....
+    -->-- DONE            -->--
+
+    --<-- IAM KernelName2 --<--
+    -->-- OK              -->--
+    --<-- IAM OtherName2  --<--
+    -->-- OK              -->--
+     ....(more kernel names)....
+    --<-- DONE            --<--
+    --<-- FREEZER XML::Storable --<--   
+     ... negociating what type of reference serialisation we should use
+    -->-- NOT             -->--
+     .... server refused
+    --<-- FREEZER Storable --<--
+    -->-- OK              -->--
+     .... server accepted
+    --<-- WORLD           --<-- 
+    -->-- UP              -->-- 
+
+Negociation is now over and both sides switch to Filter::Reference.
+NOTE : last message *has* to come from server

@@ -1,0 +1,39 @@
+Revision history for Perl extension POE::Component::IKC.
+
+0.09  24 May 2000
+    - Fixed things that POE 0.0906 broke
+    - Added more babysitting code to pre-forking server.  Will document soon.
+    
+0.08  24 Jan 2000
+    - Fixed non-forking server code :)
+    - 0.0808 changed Wheel::SocketFactory internals
+
+0.07  Dec 1999
+    - Added pre-forking server
+    - Added IKC::ClientLite::post_respond
+
+0.06  Saturday Dec 18 1999
+    - Fixed some warning conditions
+
+0.05  Saturday Nov 06 1999
+    - Chanels are now being closed when a remote kernel unregisters
+      (this was a TODO, but previously only EPIPE or socket errors
+      would cause this to happen and it was leaking ram)
+    - Small cosmetic changes
+
+0.04  Sep 23 1999
+    - IKC::ClientLite
+    - Some changes :)
+
+0.03  Thr May 20 22:32 1999
+    - Added the object interface
+    - Documented the publish/subscribe
+    - Added access restrictions so that only published
+      states may be posted
+
+0.02  Wed May 19 xxxx 1999
+    - Added publish/subscribe 
+
+0.01  Tue May 11 21:18:04 1999
+	- original version; created by h2xs 1.18
+

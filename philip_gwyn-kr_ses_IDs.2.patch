@@ -1,0 +1,120 @@
+diff -burN POE-0.06_06.with-PG-patches/MANIFEST POE-0.06_06/MANIFEST
+--- POE-0.06_06.with-PG-patches/MANIFEST	Wed Mar 17 08:33:38 1999
++++ POE-0.06_06/MANIFEST	Sat May 15 20:16:42 1999
+@@ -39,3 +39,4 @@
+ tests/thrash.perl
+ tests/tutorial-chat.perl
+ tests/wheels.perl
++tests/ids.perl
+\ No newline at end of file
+diff -burN POE-0.06_06.with-PG-patches/POE/Kernel.pm POE-0.06_06/POE/Kernel.pm
+--- POE-0.06_06.with-PG-patches/POE/Kernel.pm	Mon Apr 19 07:20:32 1999
++++ POE-0.06_06/POE/Kernel.pm	Tue May 18 20:23:49 1999
+@@ -115,6 +115,8 @@
+ sub KR_SIGNALS        () { 4 }
+ sub KR_ALIASES        () { 5 }
+ sub KR_ACTIVE_SESSION () { 6 }
++sub KR_ID             () { 7 }          # -PG
++sub KR_IDs            () { 8 }          # -PG
+                                         # handle structure
+ sub HND_HANDLE   () { 0 }
+ sub HND_REFCOUNT () { 1 }
+@@ -262,6 +264,8 @@
+     $self->[KR_STATES  ] = [ ];
+     $self->[KR_SIGNALS ] = { };
+     $self->[KR_ALIASES ] = { };
++    $self->[KR_ID      ] = '';          # -PG
++    $self->[KR_IDs     ] = { };         # -PG
+                                         # initialize the vectors *as* vectors
+     vec($self->[KR_VECTORS]->[VEC_RD], 0, 1) = 0;
+     vec($self->[KR_VECTORS]->[VEC_WR], 0, 1) = 0;
+@@ -762,6 +766,7 @@
+     die "session $session already exists\a"
+       if (exists $self->[KR_SESSIONS]->{$session});
+   }
++  $session->{'ID'}=$self->ID_alloc($session);              # -PG
+ 
+   $self->_dispatch_state($session, $kr_active_session, EN_START, \@args);
+   $self->_enqueue_state($session, $kr_active_session, EN_GC, time(), []);
+@@ -813,6 +818,7 @@
+ 
+     unless ($ss->[SS_REFCOUNT]) {
+       $self->session_free($session);
++      $self->ID_free($ss->[SS_SESSION]);
+     }
+   }
+ }
+@@ -1165,6 +1171,11 @@
+   if (exists $self->[KR_SESSIONS]->{$name}) {
+     return $self->[KR_SESSIONS]->{$name}->[SS_SESSION];
+   }
++ 
++                                        # resolve against session IDs
++  if (my $s=$self->ID_lookup($name)) { 
++    return $s if $s->isa('POE::Session');
++  }
+                                         # it doesn't resolve to anything?
+   $! = ESRCH;
+   return undef;
+@@ -1186,6 +1197,63 @@
+                                         # no such session
+   $! = ESRCH;
+   return 0;
++}
++
++#==============================================================================
++# Kernel and Session IDs -PG
++#==============================================================================
++
++sub _ID ()
++{
++    # Attempt to get hostname
++    local $SIG{__DIE__};
++    my $host='';
++    eval {                      # POSIX::uname is fast
++        require POSIX;
++        $host=(POSIX::uname)[1];
++    } 
++#    || eval {                   # Sys::Hostname is potentialy very slow
++#        require Sys::Hostname;
++#        $host=Sys::Hostname::hostname;
++#    }
++    ;
++    $host.='-' if $host;
++    # this is guarantied to be unique localy until $$ is able
++    # to wrap around w/in one second
++    return $host.unpack 'H*', pack'N*', time, $$;
++}
++
++sub ID
++{
++    my ($self) = @_;
++    $self->[KR_ID] ||= _ID;
++    return $self->[KR_ID];
++}
++
++{
++    my $session_id=1;
++    sub ID_alloc
++    {
++        my($self, $what)=@_;
++        my $id=$session_id++;
++        # we don't use an array, because it will be sparse 
++        # (and therefore waste memory)
++        $self->[KR_IDs]->{$id}=$what;        # Not needed (for now)
++        return $id;
++    }
++}
++
++sub ID_lookup
++{
++    my($self, $id)=@_;
++    $id=$id->{'ID'} if ref $id;
++    return $self->[KR_IDs]->{$id}
++}
++sub ID_free
++{
++    my($self, $id)=@_;
++    $id=$id->{'ID'} if ref $id;    
++    delete $self->[KR_IDs]->{$id}
+ }
