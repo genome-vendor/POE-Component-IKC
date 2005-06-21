@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.18 2004/11/11 02:10:09 fil Exp $
+# $Id: Responder.pm,v 1.19 2005/06/09 04:20:55 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -25,7 +25,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1501';
+$VERSION = '0.18';
 
 sub DEBUG { 0 }
 
@@ -373,7 +373,7 @@ sub request
 {
     my($self, $request)=@_;;
     my($kernel)=@{$self}{qw(poe_kernel)};
-    DEBUG2 and warn Dumper $request;
+    DEBUG2 and warn "IKC request=", Dumper $request;
 
     # We ignore the kernel for now, but we should really use it to decide
     # weither we should run the request or not
@@ -1347,8 +1347,7 @@ sub _start
     }
     else {
         DEBUG and do {
-            local $"=', ';
-            warn "Posting @$args";
+            warn "Posting ", Dumper $args;
         };
         $kernel->post(@$args);
     }
@@ -1941,6 +1940,10 @@ L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
 
 
 $Log: Responder.pm,v $
+Revision 1.19  2005/06/09 04:20:55  fil
+Reconciled
+Added check to put() to a closed wheel in Channel
+
 Revision 1.18  2004/11/11 02:10:09  fil
 Changed pending stuff to a check of check_octets_out
 

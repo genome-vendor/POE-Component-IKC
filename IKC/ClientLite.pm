@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.15 2004/05/13 19:51:21 fil Exp $
+# $Id: ClientLite.pm,v 1.16 2005/06/09 04:20:55 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1501';
+$VERSION = '0.18';
 
 sub DEBUG { 0 }
 
@@ -453,7 +453,7 @@ sub _get_freezer
     }
 
     # Now get the methodes we want
-    my $freeze=$freezer->can('freeze') || $freezer->can('nfreeze');
+    my $freeze=$freezer->can('nfreeze') || $freezer->can('freeze');
     carp "$freezer doesn't have a freeze method" unless $freeze;
     my $thaw=$freezer->can('thaw');
     carp "$freezer doesn't have a thaw method" unless $thaw;
@@ -617,6 +617,10 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: ClientLite.pm,v $
+Revision 1.16  2005/06/09 04:20:55  fil
+Reconciled
+Added check to put() to a closed wheel in Channel
+
 Revision 1.15  2004/05/13 19:51:21  fil
 Moved to signal_handled
 

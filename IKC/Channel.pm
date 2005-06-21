@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.17 2004/11/11 02:10:09 fil Exp $
+# $Id: Channel.pm,v 1.18 2005/06/09 04:20:55 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.1501';
+$VERSION = '0.18';
 
 sub DEBUG { 0 }
 
@@ -54,7 +54,7 @@ sub spawn
 
     new POE::Session( 
                     _start => \&channel_start,
-                    _stop  => \&channel_shutdown,
+                    _stop  => \&channel_stop,
                     _default => \&channel_default,
                     error  => \&channel_error,
                     shutdown =>\&channel_close,
@@ -89,6 +89,10 @@ sub channel_start
     # $name is blank if create_ikc_{server,client} wasn't called with a name
     # OR if we are a kernel that was connected to (2001/05 huh?)
 
+    # +GC
+    my $alias = 0+$session;
+    $alias = "Channel $alias";
+    $kernel->alias_set($alias);
 
     # all clients have $on_connect defined, even if sub {}
     my $server=not defined $p->{on_connect};
@@ -505,13 +509,53 @@ sub channel_error
     }
 
     # warn "ERROR $heap->{remote_ID}";
+    _close_wheel($heap, 1);                # either way, shut down
+}
+
+
+#----------------------------------------------------
+sub _channel_unregister
+{
+    my($heap)=@_;
     if($heap->{remote_ID}) {
-        $kernel->call('IKC', 'unregister', $heap->{remote_ID});
+        DEBUG and warn <<WARN;
+------------------------------------------
+              UNREGISTER $$
+------------------------------------------
+WARN
+        # 2005/06 Tell IKC we closed the connection
+        $poe_kernel->call('IKC', 'unregister', $heap->{remote_ID});
         delete $heap->{remote_ID};
     }
                                         # either way, shut down
-    _close_wheel($heap);
 }
+
+#----------------------------------------------------
+sub _close_wheel
+{
+    my($heap, $force)=@_;
+    # tell responder right away that this channel isn't to be used
+    _channel_unregister($heap);
+
+    return unless $heap->{wheel_client};
+
+    if(not $force and $heap->{wheel_client}->get_driver_out_octets) {
+        DEBUG and 
+            warn "************ Defering wheel close";
+        $heap->{go_away}=1;         # wait until next Flushed
+        return;
+    } 
+    DEBUG and 
+        warn "Deleting wheel session = ", $poe_kernel->get_active_session->ID;
+    my $x=delete $heap->{wheel_client};
+    # WORK AROUND
+    $x->DESTROY;
+
+    return;   
+}
+
+
+
 
 #----------------------------------------------------
 #
@@ -525,16 +569,11 @@ sub channel_default
 
 #----------------------------------------------------
 # Process POE's standard _stop event by shutting down.
-sub channel_shutdown 
+sub channel_stop 
 {
     my $heap = $_[HEAP];
     DEBUG && 
         warn "$$: *** Channel will shut down.\n";
-    if($heap->{remote_ID}) {
-        DEBUG and warn "SHUTDOWN $heap->{remote_ID}";
-        # $poe_kernel->call('IKC', 'unregister', $heap->{remote_ID});
-        # delete $heap->{remote_ID};
-    }
     _close_wheel($heap);
 }
 
@@ -577,8 +616,19 @@ sub channel_send
     $request->{rsvp}->{kernel}||=$heap->{kernel_name}
             if ref($request) and $request->{rsvp};
 
-    # $heap->{pending}=1;
-    $heap->{'wheel_client'}->put($request);
+    if($heap->{'wheel_client'}) {
+        $heap->{'wheel_client'}->put($request);
+    }
+    else {
+        my $what={event => $request->{event},
+                  from  => $request->{from}};
+        $what->{action} = $request->{params}[0] 
+            if $what->{event}{state} eq 'IKC:proxy' and 
+                'ARRAY' eq ref $request->{params};
+        my $type = "missing";
+        $type = "shutdown" if $heap->{shutdown};
+        warn "$$: Attempting to put to a $type channel! ". Dumper $what;
+    }
     return 1;
 }
 
@@ -587,32 +637,10 @@ sub channel_flushed
 {
     my($heap, $wheel)=@_[HEAP, ARG0];
     DEBUG && warn "$$: Flushed data...\n";
-    # $heap->{pending}=0;
     if($heap->{go_away}) {
-        delete $heap->{go_away};
-        delete $heap->{wheel_client};
+        _close_wheel($heap);
     }
     return;
-}
-
-#----------------------------------------------------
-sub _close_wheel
-{
-    my($heap)=@_;
-    return unless $heap->{wheel_client};
-    if($heap->{wheel_client}->get_driver_out_octets) {
-        DEBUG and warn "************ Defering wheel";
-        $heap->{go_away}=1;         # wait until next Flushed
-        return;
-    } 
-    DEBUG and warn "Deleting wheel";
-    my $x=delete $heap->{wheel_client};
-    # WORK AROUND
-    $x->DESTROY;
-
-    #use YAML qw(Dump);
-    #my $x=Dump $poe_kernel;
-    return;   
 }
 
 #----------------------------------------------------
@@ -620,7 +648,9 @@ sub _close_wheel
 sub channel_close
 {
     my ($heap)=$_[HEAP];
-    DEBUG && warn "$$: channel_close\n";
+    DEBUG && 
+        warn "$$: channel_close\n";
+    $heap->{shutdown}=1;
     _close_wheel($heap);
 }
 
@@ -736,6 +766,22 @@ nfreeze) and thaw.  See C<POE::Component::IKC::Client>.
 This event causes the server to close it's socket and skiddadle on down the
 road.  Normally it is only posted from IKC::Responder.
 
+If you want to post this event yourself, you can get the channel's
+session ID from IKC::Client's on_connect:
+
+    POE::Component::IKC::Client->spawn(
+        ....
+            on_connect=>sub {
+                $heap->{channel} = $poe_kernel->get_active_session()->ID;
+            },
+        ....
+        );
+
+Then, when it becomes time to disconnect:
+
+    $poe_kernel->call($heap->{channel} => 'shutdown');
+
+Yes, this is a hack.  A cleaner machanism needs to be provided.
 
 
 =head1 BUGS

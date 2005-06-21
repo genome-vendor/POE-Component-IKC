@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm,v 1.14 2004/05/27 01:04:24 fil Exp $
+# $Id: Client.pm,v 1.15 2005/06/09 04:20:55 fil Exp $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1501';
+$VERSION = '0.18';
 
 sub DEBUG { 0 }
 
@@ -254,9 +254,21 @@ to foreign kernels.
 DEPRECATED.  Please use the IKC/monitor stuff.  See
 L<POE::Component::IKC::Responder>.  
 
-Note, also, that the coderef will be
-executed from within an IKC session, NOT within your own session.  This means
-that things like $poe_kernel->delay_set() won't do what you think they should.
+Note, also, that the coderef will be executed from within an IKC channel
+session, NOT within your own session.  This means that things like
+$poe_kernel->delay_set() won't do what you think they should.
+
+It does, however, mean that you can get the session ID of the IKC channel for
+this connection.
+
+    POE::Component::IKC::Client->spawn(
+        ....
+            on_connect=>sub {
+                $heap->{channel} = $poe_kernel->get_active_session()->ID;
+            },
+        ....
+        );
+
 
 =item C<on_error>
 

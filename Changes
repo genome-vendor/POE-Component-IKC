@@ -1,8 +1,18 @@
 Revision history for Perl extension POE::Component::IKC.
 
+
+
+0.18 21 June 2005
+    - ClientLite was looking for freeze before nfreeze, which broke 
+        cross-platform usage
+    - Channels weren't being shut down properly after X connections
+    - Channels couldn't be shut down from a Client
+
+0.16 - 0.17 Internal releases
+
 0.1501 23 Mar 2005
     - Fixup some of the DEBUG messages
-    - Changed from use of internatl {pending} to wheel->get_driver_out_octets
+    - Changed from use of internal {pending} to wheel->get_driver_out_octets
     - Added WORK AROUND for wheel leak issue
     - LocalKernel now removes it's alias, to be tidy
     - Removed myself element of Responder's heap.  What was it going to be
@@ -16,6 +26,8 @@ Revision history for Perl extension POE::Component::IKC.
 0.15 26 May 2004
     - Added on_error, which is automatically deprecated for the monitor stuff
     - Fixed some of the test
+     13 May 2004
+    - Moved to signal_handled
 
 0.14 17 Oct 2002
     - Nothing changed

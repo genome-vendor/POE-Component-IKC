@@ -7,7 +7,6 @@ use POE::Kernel;
 
 eval {
     Test::Client->spawn($ARGV[0]);
-
     $poe_kernel->run();
 };
 warn $@ if $@;

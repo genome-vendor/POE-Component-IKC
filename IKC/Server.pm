@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.19 2004/05/27 01:04:24 fil Exp $
+# $Id: Server.pm,v 1.20 2005/06/09 04:20:55 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.1501';
+$VERSION = '0.18';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -61,7 +61,7 @@ sub create_ikc_server
                         _start _stop error
                         accept fork retry waste_time
                         babysit rogues shutdown
-                        sig_CHLD sig_INT sig_USR2
+                        sig_CHLD sig_INT sig_USR2 sig_USR1
                         )],
                     [\%params],
                   );
@@ -141,28 +141,31 @@ sub _start
     # shutdown
     $kernel->post(IKC=>'monitor', '*', {shutdown=>'shutdown'});
 
-    my $n='unknown';
+    my $alias='unknown';
     my %wheel_p=(
         Reuse          => 'yes',        # and allow immediate reuse of the port
         SuccessEvent   => 'accept',     # generating this event on connection
         FailureEvent   => 'error'       # generating this event on error
     );
     if($params->{unix}) {
-        $n="unix:$params->{unix}";
+        $alias="unix:$params->{unix}";
         $wheel_p{SocketDomain}=AF_UNIX;
         $wheel_p{BindAddress}=$params->{unix};
         $heap->{unix}=$params->{unix};
         unlink $heap->{unix};           # blindly do this ?
     }
     else {
-        $n="$params->{ip}:$params->{port}";
+        $alias="$params->{ip}:$params->{port}";
         $wheel_p{BindPort}= $params->{port};
         $wheel_p{BindAddress}= $params->{ip};
     }
-    DEBUG && warn "$$: Server starting $n.\n";
+    DEBUG && warn "$$: Server starting $alias.\n";
+
+    # +GC
+    $kernel->alias_set("IKC Server $alias");
 
                                         # create a socket factory
-    $heap->{wheel_address}=$n;
+    $heap->{wheel_address}=$alias;
     $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
     $heap->{kernel_aliases}=$params->{aliases};
@@ -189,6 +192,7 @@ sub _start
     $kernel->sig(CHLD => 'sig_CHLD');
     $kernel->sig(INT  => 'sig_INT');
     DEBUG_USR2 and $kernel->sig('USR2', 'sig_USR2');
+    DEBUG_USR2 and $kernel->sig('USR1', 'sig_USR1');
 
                                         # keep track of children
     $heap->{children} = {};
@@ -422,14 +426,14 @@ sub shutdown
     DEBUG and warn "$$: Server $heap->{name} shutdown\n";
 
     my $w=delete $heap->{wheel};      # close socket
-#    use Devel::Peek;
-#    Devel::Peek::Dump $w;
     # WORK AROUND
     $w->DESTROY;
     if($heap->{children} and %{$heap->{children}}) {
         $kernel->delay('rogues');   # we no longer care about rogues
     }
     $kernel->delay('waste_time');   # get it OVER with
+    # -GC
+    $kernel->alias_remove("IKC Server $heap->{wheel_address}");
     $heap->{'die'}=1;               # prevent race conditions
 }
 
@@ -667,6 +671,7 @@ sub sig_INT
     return;
 }
 
+############################################################
 sub check_kernel
 {
     my($kernel, $child, $signal)=@_;
@@ -701,13 +706,108 @@ sub check_kernel
     }
 }
 
+############################################################
+sub __peek
+{
+    my($verbose)=@_;
+    eval {
+        require POE::API::Peek;
+    };
+    if($@) {
+        DEBUG and warn "Failed to load POE::API::Peek: $@";
+        return;
+    }
+    my $api=POE::API::Peek->new();
+    my @queue = $api->event_queue_dump();
+    
+    my $ret = "Event Queue:\n";
+  
+    foreach my $item (@queue) {
+        $ret .= "\t* ID: ". $item->{ID}." - Index: ".$item->{index}."\n";
+        $ret .= "\t\tPriority: ".$item->{priority}."\n";
+        $ret .= "\t\tEvent: ".$item->{event}."\n";
+
+        if($verbose) {
+            $ret .= "\t\tSource: ".
+                    $api->session_id_loggable($item->{source}).
+                    "\n";
+            $ret .= "\t\tDestination: ".
+                    $api->session_id_loggable($item->{destination}).
+                    "\n";
+            $ret .= "\t\tType: ".$item->{type}."\n";
+            $ret .= "\n";
+        }
+    }
+    if($api->session_count) {
+        $ret.="Keepalive " unless $verbose;
+        $ret.="Sessions: \n";
+        my $ses;
+        foreach my $session ($api->session_list) {  
+            my $ref=0;
+            $ses='';
+
+            $ses.="\tSession ".$api->session_id_loggable($session)." ($session)";
+
+            my $refcount=$api->get_session_refcount($session);
+            $ses.="\n\t\tref count: $refcount\n";
+
+            my $q=$api->get_session_extref_count($session);
+            $ref += $q;
+            $ses.="\t\textref count: $q\n" if $q;
+
+            my $hc=$api->session_handle_count($session);
+            $ref += $hc;
+            $ses.="\t\thandle count: $q [keepalive]\n" if $hc;
+
+            my @aliases=$api->session_alias_list($session);
+            $ref += @aliases;
+            $q=join ',', @aliases;
+            $ses.="\t\tAliases: $q\n" if $q;
+
+            my @children = $api->get_session_children($session);
+            if(@children) {
+                $ref += @children;
+                $q = join ',', map {$api->session_id_loggable($_)} @children;
+                $ses.="\t\tChildren: $q\n";
+            }
+
+            if($refcount != $ref) {
+                $ses.="\t\tReference: refcount=$refcount counted=$ref [keepalive]\n";
+            }
+            if($hc or $verbose or $refcount != $ref) {
+                $ret.=$ses;
+            }
+        }
+    }
+    $ret.="\n";
+
+    warn "$$: $ret";
+    return 1;
+}
+
+
 sub sig_USR2
 {
 #    return unless DEBUG;
     my ($kernel, $heap, $signal, $pid) = @_[KERNEL, HEAP, ARG0, ARG1];
     $pid||='';
-    check_kernel($kernel, $heap->{'is a child'}, 1);
     warn "$$: signal $signal $pid\n";
+    unless(__peek(1)) {
+        check_kernel($kernel, $heap->{'is a child'}, 1);
+    }
+    $kernel->sig_handled();
+    return;
+}
+
+sub sig_USR1
+{
+#    return unless DEBUG;
+    my ($kernel, $heap, $signal, $pid) = @_[KERNEL, HEAP, ARG0, ARG1];
+    $pid||='';
+    warn "$$: signal $signal $pid\n";
+    unless(__peek(0)) {
+        check_kernel($kernel, $heap->{'is a child'}, 0);
+    }
     $kernel->sig_handled();
     return;
 }
