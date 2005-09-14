@@ -1,7 +1,7 @@
 package POE::Component::IKC::Freezer;
 
 ############################################################
-# $Id: Freezer.pm,v 1.8 2005/06/09 04:20:55 fil Exp $
+# $Id: Freezer.pm,v 1.9 2005/08/04 22:01:30 fil Exp $
 # Copyright 2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.

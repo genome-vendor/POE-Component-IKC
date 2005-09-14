@@ -205,7 +205,9 @@ sub called
 sub method
 {
     my($kernel, $heap, $sender, $type)=@_[KERNEL, HEAP, SENDER, ARG0];
-    DEBUG and warn "Server: method\n";
+    $type = $type->{type} if ref $type;
+    DEBUG and 
+        warn "Server: method type=$type q=$heap->{q}\n";
     # 8, 14, 20
     ok($heap->{q}+3, ($type eq 'method'));
     $kernel->post($sender, 'YOW');

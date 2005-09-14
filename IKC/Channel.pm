@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.18 2005/06/09 04:20:55 fil Exp $
+# $Id: Channel.pm,v 1.20 2005/09/14 02:02:54 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -52,7 +52,8 @@ sub spawn
     my $package=shift;
     my %params=@_;
 
-    new POE::Session( 
+    POE::Session->create( 
+                inline_states => {
                     _start => \&channel_start,
                     _stop  => \&channel_stop,
                     _default => \&channel_default,
@@ -72,9 +73,10 @@ sub spawn
                     client_001 => \&negociate_001,
                     client_002 => \&client_002,
                     client_003 => \&client_003,
-                    'sig_INT'  => \&sig_INT,
-                    [ \%params]
-                  );
+                    'sig_INT'  => \&sig_INT
+               }, 
+               args => [\%params]
+           );
 }
 
 #----------------------------------------------------
@@ -797,3 +799,21 @@ L<POE::Component::IKC::Responder>
 
 
 =cut
+
+
+$Log: Channel.pm,v $
+Revision 1.20  2005/09/14 02:02:54  fil
+Version from IKC/Responder
+Now use Session->create, not ->new
+Improved formating
+DEBUG warnings, not print
+Proxy uses call() to work around the @$etc=() bug in POE
+
+Revision 1.19  2005/08/04 22:01:30  fil
+Fixed Channel shutdown code
+Documented how to shutdown a channel
+Freezer now checks for nfreeze first
+Moved to version 0.18
+Added USR1 (non-verbose kernel state dumping) to Server
+Improved Server kernel state dumping
+

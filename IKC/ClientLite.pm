@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.16 2005/06/09 04:20:55 fil Exp $
+# $Id: ClientLite.pm,v 1.17 2005/08/04 22:01:30 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
@@ -617,6 +617,14 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: ClientLite.pm,v $
+Revision 1.17  2005/08/04 22:01:30  fil
+Fixed Channel shutdown code
+Documented how to shutdown a channel
+Freezer now checks for nfreeze first
+Moved to version 0.18
+Added USR1 (non-verbose kernel state dumping) to Server
+Improved Server kernel state dumping
+
 Revision 1.16  2005/06/09 04:20:55  fil
 Reconciled
 Added check to put() to a closed wheel in Channel

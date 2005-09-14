@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.20 2005/06/09 04:20:55 fil Exp $
+# $Id: Server.pm,v 1.22 2005/09/14 02:02:54 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -56,14 +56,17 @@ sub create_ikc_server
     }
 
     create_ikc_responder();
-    POE::Session->new(
-                    $params{package}, [qw(
-                        _start _stop error
-                        accept fork retry waste_time
-                        babysit rogues shutdown
-                        sig_CHLD sig_INT sig_USR2 sig_USR1
+    POE::Session->create(
+                    package_states => [ 
+                        $params{package} =>
+                        [qw(
+                            _start _stop error
+                            accept fork retry waste_time
+                            babysit rogues shutdown
+                            sig_CHLD sig_INT sig_USR2 sig_USR1
                         )],
-                    [\%params],
+                    ],
+                    args=>[\%params],
                   );
 }
 

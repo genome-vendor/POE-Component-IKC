@@ -122,7 +122,8 @@ sub subscribed
 {
     DEBUG and warn "Client: subscribed\n";
     my($kernel, $heap)=@_[KERNEL, HEAP];
-    $kernel->post("poe://$heap->{name}/test"=>'method', 'method');
+    # warn "$INC{'POE/Component/IKC/Proxy.pm'}";
+    $kernel->post("poe://$heap->{name}/test" => 'method', {type => 'method'});
 }
 
 sub YOW

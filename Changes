@@ -4,7 +4,7 @@ Revision history for Perl extension POE::Component::IKC.
 
 0.18 21 June 2005
     - ClientLite was looking for freeze before nfreeze, which broke 
-        cross-platform usage
+        cross-platform usage (Thank you Philip Dobranski)
     - Channels weren't being shut down properly after X connections
     - Channels couldn't be shut down from a Client
 

@@ -1,8 +1,8 @@
-# $Id: Proxy.pm,v 1.11 2005/06/09 04:20:55 fil Exp $
+# $Id: Proxy.pm,v 1.13 2005/09/14 02:02:54 fil Exp $
 package POE::Component::IKC::Proxy;
 
 ##############################################################################
-# $Id: Proxy.pm,v 1.11 2005/06/09 04:20:55 fil Exp $
+# $Id: Proxy.pm,v 1.13 2005/09/14 02:02:54 fil Exp $
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
@@ -42,10 +42,17 @@ sub spawn
        # $poe_kernel->call($t, '_add_callback', $r_kernel, $r_session);
     } 
     else {
-        POE::Session->new($package, 
-                      [qw(_start _stop _delete _default _shutdown _add_callback)], 
-                      [$name, $r_kernel, $r_session, $monitor_start, $monitor_stop]
-                     );
+        POE::Session->create( 
+            package_states => [
+                        $package => 
+                            [qw(
+                                _start _stop _delete _default 
+                                _shutdown _add_callback
+                            )],
+                    ],
+            args=> [$name, $r_kernel, $r_session, 
+                            $monitor_start, $monitor_stop]
+                    );
     }
 }
 
@@ -60,7 +67,7 @@ sub _start
     $heap->{callback}=[];
     _add_callback($heap, $r_kernel, $r_session);
 
-    DEBUG && print "Proxy for $name ($r_session) created\n";
+    DEBUG && warn "Proxy for $name ($r_session) created\n";
     $kernel->alias_set($name);
     $kernel->alias_set($r_session);
 
@@ -100,7 +107,7 @@ sub _delete
 sub _stop
 {
     my($kernel, $heap)=@_[KERNEL, HEAP];
-    DEBUG && print "Proxy for $heap->{name} deleted\n";
+    DEBUG && warn "Proxy for $heap->{name} deleted\n";
     &{$heap->{monitor_stop}};
 }
 
@@ -112,16 +119,23 @@ sub _default
                     @_[KERNEL, HEAP, ARG0, ARG1, SENDER];
     return if $state =~ /^_/;
 
+    # use Data::Dumper;
+    # warn "_default args=", Dumper $args;
     if(not $heap->{callback})
     {
         warn "Attempt to respond to a callback with $state\n";
         return;
     }
 
-    DEBUG && print "Proxy $heap->{name}/$state posted\n";
+    DEBUG && warn "Proxy $heap->{name}/$state posted.\n";
+    # use Data::Dumper;
+    # warn "_default args=", Dumper $args;
+    my $ARG = [$state, [@$args]];
     foreach my $r_state (@{$heap->{callback}}) {
-        $kernel->post('IKC', 'post2', $r_state, $sender, [$state, $args]);
+        # warn "_default ARG=", Dumper $ARG;
+        $kernel->call('IKC', 'post2', $r_state, $sender, $ARG);
     }
+    return;
 }
 
 1;
@@ -151,6 +165,21 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: Proxy.pm,v $
+Revision 1.13  2005/09/14 02:02:54  fil
+Version from IKC/Responder
+Now use Session->create, not ->new
+Improved formating
+DEBUG warnings, not print
+Proxy uses call() to work around the @$etc=() bug in POE
+
+Revision 1.12  2005/08/04 22:01:30  fil
+Fixed Channel shutdown code
+Documented how to shutdown a channel
+Freezer now checks for nfreeze first
+Moved to version 0.18
+Added USR1 (non-verbose kernel state dumping) to Server
+Improved Server kernel state dumping
+
 Revision 1.11  2005/06/09 04:20:55  fil
 Reconciled
 Added check to put() to a closed wheel in Channel

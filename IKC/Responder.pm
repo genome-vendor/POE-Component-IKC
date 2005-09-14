@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.19 2005/06/09 04:20:55 fil Exp $
+# $Id: Responder.pm,v 1.21 2005/09/14 02:02:54 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -25,7 +25,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.18';
+$VERSION = '0.1801';
 
 sub DEBUG { 0 }
 
@@ -42,7 +42,9 @@ sub spawn
 {
     my($package)=@_;
     return 1 if $ikc;
-    new POE::Session( $package, [qw(
+    POE::Session->create( 
+        package_states => [
+            $package, [qw(
                       _start _stop
                       request post call raw_message post2
                       remote_error
@@ -51,7 +53,8 @@ sub spawn
                       published
                       monitor inform_monitors shutdown 
                       do_you_have ping sig_INT
-                    )]);
+                    )]
+        ]);
     return 1;
 }
 
@@ -157,6 +160,8 @@ sub post
 sub post2
 {
     my($heap, $to, $sender, $params) = @_[HEAP, ARG0, ARG1, ARG2];
+    # use Data::Dumper;
+    # warn "post2 params=", Dumper $params;
     $heap->{self}->post($to, $params, $sender);
 }
 
@@ -373,7 +378,8 @@ sub request
 {
     my($self, $request)=@_;;
     my($kernel)=@{$self}{qw(poe_kernel)};
-    DEBUG2 and warn "IKC request=", Dumper $request;
+    DEBUG2 and 
+        warn "IKC request=", Dumper $request;
 
     # We ignore the kernel for now, but we should really use it to decide
     # weither we should run the request or not
@@ -847,6 +853,8 @@ sub post
     my($self, $to, $params, $sender) = @_;
 
     $to="poe://$to" unless ref $to or $to=~/^poe:/;
+    # use Data::Dumper;
+    # warn "params=", Dumper $params;
 
     $self->send_msg({params=>$params, 'event'=>$to}, $sender);
 }
@@ -887,6 +895,8 @@ sub call
     }
     DEBUG2 and warn "RSVP is ", specifier_name($rsvp), "\n";
 
+    # use Data::Dumper;
+    # warn "params=", Dumper $params;
     $self->send_msg({params=>$params, 'event'=>$to,
                      rsvp=>$rsvp
                     }, $sender
@@ -1306,9 +1316,10 @@ sub DEBUG { 0 }
     sub thunk
     {
         # my($rsvp, $args, $from, $wantarray)=@_;
-        POE::Session->new(__PACKAGE__, [qw(_start _stop _default)],
-                                       [$name++, @_]
-                             );
+        POE::Session->create( 
+                package_states => [__PACKAGE__, [qw(_start _stop _default)]],
+                args => [$name++, @_]
+            );
     }
 }
 
@@ -1940,6 +1951,21 @@ L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
 
 
 $Log: Responder.pm,v $
+Revision 1.21  2005/09/14 02:02:54  fil
+Version from IKC/Responder
+Now use Session->create, not ->new
+Improved formating
+DEBUG warnings, not print
+Proxy uses call() to work around the @$etc=() bug in POE
+
+Revision 1.20  2005/08/04 22:01:30  fil
+Fixed Channel shutdown code
+Documented how to shutdown a channel
+Freezer now checks for nfreeze first
+Moved to version 0.18
+Added USR1 (non-verbose kernel state dumping) to Server
+Improved Server kernel state dumping
+
 Revision 1.19  2005/06/09 04:20:55  fil
 Reconciled
 Added check to put() to a closed wheel in Channel

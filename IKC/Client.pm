@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm,v 1.15 2005/06/09 04:20:55 fil Exp $
+# $Id: Client.pm,v 1.18 2005/09/14 02:02:54 fil Exp $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -75,8 +75,11 @@ sub create_ikc_client
     }
     $parms{serializers}=\@keep;
 
-    new POE::Session( $parms{package}=>
-                [qw(_start _stop error connected)], [\%parms]);
+    POE::Session->create( 
+            package_states => [ $parms{package} =>
+                                          [qw(_start _stop error connected)]],
+            args => [\%parms]
+        );
 }
 
 sub spawn
@@ -153,7 +156,7 @@ sub error
     DEBUG and warn "Client encountered $operation error $errnum: $errstr\n";
     my $w=delete $heap->{wheel};
     # WORK AROUND
-    $w->DELETE;
+    $w->DESTROY;
     if($heap->{on_error}) {
         $heap->{on_error}->($operation, $errnum, $errstr);
     }

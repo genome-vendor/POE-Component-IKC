@@ -1,7 +1,7 @@
 package POE::Component::IKC::Specifier;
 
 ############################################################
-# $Id: Specifier.pm,v 1.11 2005/06/09 04:20:55 fil Exp $
+# $Id: Specifier.pm,v 1.12 2005/08/04 22:01:30 fil Exp $
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
