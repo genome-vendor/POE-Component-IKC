@@ -1,6 +1,7 @@
 Revision history for Perl extension POE::Component::IKC.
 
-
+0.1802 22 March 2006
+    - Added IKC.pm to make xantus happy
 
 0.18 21 June 2005
     - ClientLite was looking for freeze before nfreeze, which broke 
