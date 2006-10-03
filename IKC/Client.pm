@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm,v 1.18 2005/09/14 02:02:54 fil Exp $
+# $Id: Client.pm,v 1.18.2.1 2006/10/03 22:52:31 fil Exp $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -156,7 +156,7 @@ sub error
     DEBUG and warn "Client encountered $operation error $errnum: $errstr\n";
     my $w=delete $heap->{wheel};
     # WORK AROUND
-    $w->DESTROY;
+    # $w->DESTROY;
     if($heap->{on_error}) {
         $heap->{on_error}->($operation, $errnum, $errstr);
     }

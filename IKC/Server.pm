@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.22 2005/09/14 02:02:54 fil Exp $
+# $Id: Server.pm,v 1.23.2.1 2006/10/03 22:52:31 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -63,7 +63,7 @@ sub create_ikc_server
                             _start _stop error
                             accept fork retry waste_time
                             babysit rogues shutdown
-                            sig_CHLD sig_INT sig_USR2 sig_USR1
+                            sig_CHLD sig_INT sig_USR2 sig_USR1 sig_TERM
                         )],
                     ],
                     args=>[\%params],
@@ -193,6 +193,7 @@ sub _start
     _select_define($heap, 0);
 
     $kernel->sig(CHLD => 'sig_CHLD');
+    $kernel->sig(TERM => 'sig_TERM');
     $kernel->sig(INT  => 'sig_INT');
     DEBUG_USR2 and $kernel->sig('USR2', 'sig_USR2');
     DEBUG_USR2 and $kernel->sig('USR1', 'sig_USR1');
@@ -426,15 +427,19 @@ sub shutdown
 {
     my($kernel, $heap)=@_[KERNEL, HEAP];
 
-    DEBUG and warn "$$: Server $heap->{name} shutdown\n";
+    DEBUG and 
+        warn "$$: Server $heap->{name} shutdown\n";
 
     my $w=delete $heap->{wheel};      # close socket
     # WORK AROUND
-    $w->DESTROY;
+    # $w->DESTROY;
     if($heap->{children} and %{$heap->{children}}) {
         $kernel->delay('rogues');   # we no longer care about rogues
     }
     $kernel->delay('waste_time');   # get it OVER with
+    if( $heap->{babysit} ) {
+        $kernel->delay('babysit');      # get it OVER with
+    }
     # -GC
     $kernel->alias_remove("IKC Server $heap->{wheel_address}");
     $heap->{'die'}=1;               # prevent race conditions
@@ -665,12 +670,27 @@ sub sig_INT
         warn "$$ SIGINT\n";
         $heap->{'die'}=1;
         $kernel->delay('waste_time');   # kill this event
-        $kernel->sig_handled();
     } else {
         delete $heap->{wheel};
-        $kernel->sig_handled();
     }    
-    # don't handle terminal signals
+    $kernel->sig_handled();             # INT is terminal
+    return;
+}
+
+#------------------------------------------------------------------------------
+# daemontool's svc -d sends a TERM
+# The _stop event handler takes care of cleanup.
+
+sub sig_TERM
+{
+    my ($kernel, $heap, $signal, $pid, $status) =
+                @_[KERNEL, HEAP, ARG0, ARG1, ARG2];
+
+    warn "$$ SIGTERM\n";
+    $heap->{'die'}=1;
+    $kernel->delay('waste_time');   # kill this event
+    $kernel->post( IKC => 'shutdown' );
+    $kernel->sig_handled();             # TERM is terminal
     return;
 }
 

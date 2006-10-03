@@ -1,7 +1,17 @@
 Revision history for Perl extension POE::Component::IKC.
 
-0.1802 22 March 2006
-    - Added IKC.pm to make xantus happy
+0.1900 3 October 2006
+    - The memory leaks (big and small) are now verified as gone with
+        POE 0.37 and perl 5.8.8.
+    - Remove Channel aliases.  DUH!
+
+0.1804 29 August 2006
+    - Added IKC.pm
+    - Check the POE leak
+
+0.1803 2 November 2005
+    - Use Scalar::UTIL
+    - Better debug messages
 
 0.18 21 June 2005
     - ClientLite was looking for freeze before nfreeze, which broke 

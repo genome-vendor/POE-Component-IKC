@@ -1,5 +1,4 @@
 Changes
-IKC.pm
 IKC/Channel.pm
 IKC/Client.pm
 IKC/ClientLite.pm
@@ -32,3 +31,4 @@ userver
 uclient
 shut-server
 shut-client
+META.yml                                 Module meta-data (added by MakeMaker)

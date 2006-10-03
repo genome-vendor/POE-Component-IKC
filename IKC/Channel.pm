@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.20 2005/09/14 02:02:54 fil Exp $
+# $Id: Channel.pm,v 1.20.2.1 2006/10/03 22:52:31 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -95,6 +95,7 @@ sub channel_start
     my $alias = 0+$session;
     $alias = "Channel $alias";
     $kernel->alias_set($alias);
+    $heap->{session_alias} = $alias;
 
     # all clients have $on_connect defined, even if sub {}
     my $server=not defined $p->{on_connect};
@@ -511,7 +512,7 @@ sub channel_error
     }
 
     # warn "ERROR $heap->{remote_ID}";
-    _close_wheel($heap, 1);                # either way, shut down
+    _close_channel($heap, 1);                # either way, shut down
 }
 
 
@@ -533,7 +534,7 @@ WARN
 }
 
 #----------------------------------------------------
-sub _close_wheel
+sub _close_channel
 {
     my($heap, $force)=@_;
     # tell responder right away that this channel isn't to be used
@@ -551,7 +552,14 @@ sub _close_wheel
         warn "Deleting wheel session = ", $poe_kernel->get_active_session->ID;
     my $x=delete $heap->{wheel_client};
     # WORK AROUND
-    $x->DESTROY;
+    # $x->DESTROY;
+
+    # sig_INT is empty
+    # $kernel->sig( 'INT' );
+
+    if( $heap->{session_alias} ) {
+        $poe_kernel->alias_remove( delete $heap->{session_alias} );
+    }
 
     return;   
 }
@@ -576,7 +584,7 @@ sub channel_stop
     my $heap = $_[HEAP];
     DEBUG && 
         warn "$$: *** Channel will shut down.\n";
-    _close_wheel($heap);
+    _close_channel($heap);
 }
 
 ###########################################################################
@@ -640,7 +648,7 @@ sub channel_flushed
     my($heap, $wheel)=@_[HEAP, ARG0];
     DEBUG && warn "$$: Flushed data...\n";
     if($heap->{go_away}) {
-        _close_wheel($heap);
+        _close_channel($heap);
     }
     return;
 }
@@ -651,9 +659,9 @@ sub channel_close
 {
     my ($heap)=$_[HEAP];
     DEBUG && 
-        warn "$$: channel_close\n";
+        warn "$$: channel_close *****************************************\n";
     $heap->{shutdown}=1;
-    _close_wheel($heap);
+    _close_channel( $heap );
 }
 
 #----------------------------------------------------
@@ -802,6 +810,10 @@ L<POE::Component::IKC::Responder>
 
 
 $Log: Channel.pm,v $
+Revision 1.20.2.1  2006/10/03 22:52:31  fil
+Fixed memory leak
+Added IKC.pm
+
 Revision 1.20  2005/09/14 02:02:54  fil
 Version from IKC/Responder
 Now use Session->create, not ->new

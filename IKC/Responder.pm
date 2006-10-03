@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.21 2005/09/14 02:02:54 fil Exp $
+# $Id: Responder.pm,v 1.25.2.1 2006/10/03 22:52:31 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -21,11 +21,12 @@ use Data::Dumper;
 
 use POE qw(Session);
 use POE::Component::IKC::Specifier;
+use Scalar::Util qw(reftype);
 
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1802';
+$VERSION = '0.1900';
 
 sub DEBUG { 0 }
 
@@ -233,12 +234,14 @@ sub subscribe
     $sessions=[$sessions] unless ref $sessions;
     return unless @$sessions;
 
-    if($callback)
+    if($callback and 'CODE' ne ref $callback)
     {
+        $sender = $sender->ID if ref $sender;
         my $state=$callback;
         $callback=sub 
         {
-            DEBUG and warn "Subscription callback to '$state'\n";
+            DEBUG and 
+                warn "Subscription callback to '$state'\n";
             $kernel->post($sender, $state, @_);
         };
     }
@@ -354,7 +357,8 @@ sub new
 sub shutdown
 {
     my($self, $kernel)=@_;
-    DEBUG and warn "$$: Some one wants us to go away... off we go\n";
+    DEBUG and 
+        warn "$$: Some one wants us to go away... off we go\n";
     # kill our alias
     $kernel->alias_remove('IKC');
     # tell every channel to shutdown
@@ -413,7 +417,7 @@ sub request
             DEBUG and warn "Allow $to->{session}/$to->{state} is now $self->{rsvp}{$to->{session}}{$to->{state}}\n";
         }
         elsif(not exists $self->{'local'}{$to->{session}}) {
-            my $p=$self->published;;
+            my $p=$self->published;
             die "Session '$to->{session}' is not available for remote kernels:",
                 join "\n", '',
                     map({ "    $_=>[" . join(', ', @{$p->{$_}}) . "]"} keys %$p),
@@ -696,13 +700,14 @@ sub send_msg
     # $msg->{params}=$self->marshall($msg->{params});
 
     # Get a list of channels to send the message to
-    my @channels=$self->channel_list($name);
+    my @channels=$self->channel_list( $name );
     unless(@channels)
     {
-        warn Dumper $to;
+        warn "$$: MSG TO ", Dumper $to;
         warn (($name eq '*')
                   ? "$$: Not connected to any foreign kernels.\n"
                   : "$$: Unknown kernel '$name'.\n");
+        warn "$$: Known kernels: ". $self->channel_names;
         return 0;
     }
 
@@ -743,16 +748,7 @@ sub _true_type
     my($self, $data, $can)=@_;
     my $r=ref $data;
     return unless $r;
-    if(UNIVERSAL::can($data, 'can')) {      # is it an object?
-        my $d=$data->can($can);             # let it do the work
-        return $d->($data) if $d;           # if it can...
-                                            
-        foreach my $q (qw(HASH ARRAY SCALAR CODE)) {
-            next unless $data->isa($q);     # otherwise we want how it's
-            return $q;                      # really implemented
-        }
-    }
-    return $r;
+    return reftype( $data );
 }
 
 #----------------------------------------------------
@@ -824,7 +820,7 @@ sub demarshall
 }
 
 #----------------------------------------------------
-## Turn a kernel name into a list of possible channels
+## Turn a kernel name or alias into a list of possible channels
 sub channel_list
 {
     my($self, $name)=@_;
@@ -844,6 +840,27 @@ sub channel_list
         return ($self->{channel}{$name})
     }
     return ();    
+}
+
+#----------------------------------------------------
+## Get a list of all the channel names (for debugging)
+sub channel_names
+{
+    my($self, $name) = @_;
+
+    if( $name and $name ne '*' ) {
+        return "$name (".join(', ', grep { $self->{kernel}{$_} eq $name }
+                                    keys %{ $self->{kernel} }
+                             ) .")";
+    }
+
+    my @ret;
+    foreach $name ( keys %{ $self->{channel} } ) {
+        push @ret, $self->channel_names( $name );
+    }
+
+    return @ret if wantarray;
+    return join ', ', @ret;
 }
 
 #----------------------------------------------------
@@ -1094,10 +1111,10 @@ sub subscribe
 #   - first 'yes' creates a proxy
 #   - 2nd 'yes' should also create a proxy!  alias conflict (for now)
 #       ... callback is called with session specifier
-# one foreign kernel says 'no', and after, another says yes
+# one foreign kernel says 'no', and after, another says no
 #   - first 'no' decrements wait count
 #   - second 'no' decrements wait count
-#       ... Subscription failed!  callback is called with specifier
+#       ... Subscription failed!  callback is called with specifier empty
 # no answers ever came...
 #   - we wait forever :(
 
@@ -1110,7 +1127,7 @@ sub _subscribe_receipt
     my $del;
 
     if(not $ses or not ref $ses) {               # REFUSED
-        warn "$$: Refused to subscribe to $spec\n";
+        warn "$$: Refused to subscribe to $spec";
         warn "$$: $resp" if $resp;
         $accepted=0;
         $del=$unique.$spec;
@@ -1146,12 +1163,15 @@ sub _subscribe_receipt
 
         $fiddle->{count}-- if $fiddle->{count};
         if(0==$fiddle->{count}) {
-            DEBUG and warn "yes.\n";
+            DEBUG and warn "yes.";
             delete $self->{subscription_callback}{$unique};
+            # use Data::Denter;
+            # warn "Fiddle =", Denter $fiddle;
             $fiddle->{callback}->($fiddle->{yes});
         }
         else {
-            DEBUG and warn "no, $fiddle->{count} left.\n";
+            DEBUG and 
+                warn "no, $fiddle->{count} left.";
         }
         
         $fiddle->{states}{$unique.$spec}--;
@@ -1951,6 +1971,25 @@ L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
 
 
 $Log: Responder.pm,v $
+Revision 1.25.2.1  2006/10/03 22:52:31  fil
+Fixed memory leak
+Added IKC.pm
+
+Revision 1.25  2005/11/02 21:44:24  fil
+Moved to version 0.1803
+
+Revision 1.24  2005/11/02 21:44:02  fil
+_true_type now uses Scalar::Util::reftype()
+Better debug messages
+Subscription callback can be a code ref.
+Added channel_names
+
+Revision 1.23  2005/10/13 03:13:26  fil
+Upped the version
+
+Revision 1.22  2005/10/13 01:59:08  fil
+Added sig_TERM for daemontools
+
 Revision 1.21  2005/09/14 02:02:54  fil
 Version from IKC/Responder
 Now use Session->create, not ->new

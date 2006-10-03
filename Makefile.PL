@@ -1,19 +1,29 @@
 use ExtUtils::MakeMaker;
 
-print <<NOTICE;
+my $warn_poe;
+eval "use POE;";
+if( $@ or ( $POE::VERSION > 0.29 and $POE::VERSION < 0.37 ) ) {
+    $warn_poe = 1;
+}
+
+if( $warn_poe ) {
+
+    print <<NOTICE;
 
 ---------------------------------------------------------------
 
-It appears IKC causes POE version 0.29 and better to exercise a
-bug in some versions of Perl that prevents wheel's DESTROY from
-being called.  Until this issue has been resolved, IKC uses a 
-work around that calls the wheel's DESTROY explicitly.  You may
-find and deactivate this by commenting out the line after
-WORK AROUND in IKC/Server.pm, IKC/Channel.pm and IKC/Client.pm
+It appears IKC causes POE version 0.29 - 0.36 to exercise a bug in some
+versions of Perl that prevents wheel's DESTROY from being called.  This
+issue has been resolved in 0.37.  If you can not upgrade your version of
+POE, IKC must work around that calls the wheel's DESTROY explicitly.  You
+may find and reactivate this by uncommenting lines after WORK AROUND in
+IKC/Server.pm, IKC/Channel.pm and IKC/Client.pm
 
 ---------------------------------------------------------------
 
 NOTICE
+
+}
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
@@ -23,5 +33,9 @@ WriteMakefile(
     'VERSION_FROM' => 'IKC/Responder.pm', # finds $VERSION
     DISTNAME => 'POE-Component-IKC',
     dist=>{COMPRESS=>'gzip -9f', EXT=>'gz'},
-    PREREQ_PM =>{POE=>0.28},
+    PREREQ_PM =>{
+            POE          => 0.32,
+            Scalar::Util => 1,
+        },
+    
 );
