@@ -864,7 +864,7 @@ identical.
 
 =head1 EXPORTED FUNCTIONS
 
-=item C<create_ikc_server>
+=head2 C<create_ikc_server>
 
 This function initiates all the work of building the IKC server.  
 Parameters are :
@@ -924,10 +924,10 @@ child).
 
 =head1 EVENTS
 
-=item shutdown
+=head2 shutdown
 
-This event causes the server to close it's socket and skiddadle on down the
-road.  Normally it is only posted from IKC::Responder.
+This event causes the server to close it's socket, clean up the shop and
+head home. Normally it is only posted from IKC::Responder.
 
 =head1 BUGS
 

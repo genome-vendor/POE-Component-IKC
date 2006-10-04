@@ -767,11 +767,10 @@ nfreeze) and thaw.  See C<POE::Component::IKC::Client>.
 
 
 
-=back
 
 =head1 EVENTS
 
-=item shutdown
+=head2 shutdown
 
 This event causes the server to close it's socket and skiddadle on down the
 road.  Normally it is only posted from IKC::Responder.

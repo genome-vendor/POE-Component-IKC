@@ -166,7 +166,7 @@ Session 'bob' on foreign kernel 'Billy'.
 
 =head1 EXPORTED FUNCTIONS
 
-=item C<specifier_parse($spec)>
+=head2 C<specifier_parse($spec)>
 
 Turn a specifier into the internal representation (hash ref).  Returns
 B<undef()> if the specifier wasn't valid.
@@ -183,7 +183,7 @@ would print
 
 B<Note> : the internal representation might very well change some day.
 
-=item C<specifier_name($spec)>
+=head2 C<specifier_name($spec)>
 
 Turns a specifier into a string.
 

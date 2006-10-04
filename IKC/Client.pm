@@ -216,7 +216,7 @@ identical.
 
 =head1 EXPORTED FUNCTIONS
 
-=item C<create_ikc_client>
+=head2 create_ikc_client
 
 This function initiates all the work of connecting to an IKC server.
 Parameters are :

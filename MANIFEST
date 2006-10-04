@@ -9,6 +9,7 @@ IKC/Specifier.pm
 IKC/Freezer.pm
 IKC/LocalKernel.pm
 IKC.pod
+IKC.pm
 MANIFEST
 Makefile.PL
 README

@@ -527,7 +527,7 @@ Connects to the remote kernel if we aren't already. You can use this method
 to make sure that the connection is open before trying anything.
 
 Returns true if connection was successful, false if not.  You can check
-C<error> to see what the problem was.
+L</error> to see what the problem was.
 
 
 =head2 disconnect
@@ -558,7 +558,8 @@ undef() if we couldn't connect or reconnect to remote kernel.
 Posts the event specified by C<$specifier> to the remote kernel.  C<$data>
 is any parameters you want to send along with the event.  It waits until
 the remote kernel sends a message back and returns it's payload.  Waiting
-timesout after whatever you value you gave to C<create_ikc_client>.
+timesout after whatever you value you gave to 
+L<POE::Component::IKC::Client>->spawn.
 
 Events on the far side have to be aware of post_respond.  In particular,
 ARG0 is not C<$data> as you would expect, but an arrayref that contains

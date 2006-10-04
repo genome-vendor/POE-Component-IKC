@@ -8,10 +8,16 @@ if( $@ or ( $POE::VERSION > 0.29 and $POE::VERSION < 0.37 ) ) {
 
 if( $warn_poe ) {
 
+    my $current = '';
+    if( $POE::VERSION ) {
+        $current = "You currently have POE $POE::VERSION installed.\n";
+    }
+
+
     print <<NOTICE;
 
 ---------------------------------------------------------------
-
+$current
 It appears IKC causes POE version 0.29 - 0.36 to exercise a bug in some
 versions of Perl that prevents wheel's DESTROY from being called.  This
 issue has been resolved in 0.37.  If you can not upgrade your version of

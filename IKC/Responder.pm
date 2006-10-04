@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1900';
+$VERSION = '0.1901';
 
 sub DEBUG { 0 }
 
@@ -1439,7 +1439,8 @@ better behaved, because POE is a cooperative system.
     POE::Component::IKC::Responder->spawn();
 
 This function creates the Responder session and object.  Normally, 
-C<IKC::Client> or C<IKC::Server> does this for you.  But in some applications
+L<POE::Component::IKC::Client> or L<POE::Component::IKC::Server> does 
+this for you.  But in some applications
 you want to make sure that the Responder is up and running before then.
 
 
@@ -1474,7 +1475,7 @@ This logs an state with a hypothetical logger.
 
 =back
 
-See the L<Note about SENDER> below.
+See the L</Note about SENDER> below.
 
 
 =head2 C<call>
@@ -1568,7 +1569,8 @@ is an array ref of kernel aliases to be registered.
 =head2 C<unregister>
 
 Unregisters one or more foreign kernel names with the responder.  This is
-done when the foreign kernel disconnects by C<IKC::Channel>. If this is the
+done when the foreign kernel disconnects by L<POE::Component::IKC::Channel>. 
+If this is the
 default kernel, there is no more default kernel.
 
 First parameter is either a single kernel name or a kernel alias.  Second
@@ -1581,7 +1583,7 @@ kernel, it goes without saying that all it's aliases get unregistered also.
 =head2 C<register_local>
 
 Registers new aliases for local kernel with the responder.  This is done
-internally by C<IKC::Server> and C<IKC::Client>. Will NOT define the default
+internally by L<POE::Component::IKC::Server> and L<POE::Component::IKC::Client>. Will NOT define the default
 kernel.
 
 First and only parameter is an array ref of kernel aliases to be registered.
@@ -1650,6 +1652,7 @@ Returns a list of all the published states.
 
 Returns a hashref, keyed on session IDs.  Values are arrayref of states 
 published by that session.
+
 =over 2
 
 =item C<session>
@@ -1679,7 +1682,7 @@ acknowledges the subscription will be proxied.
 
 =item C<callback>
 
-Either an state (for the state interface) or a coderef (for the object
+Either a state (for the state interface) or a coderef (for the object
 interface) that is posted (or called) when all subscription requests have
 either been replied to, or have timed out.
 
@@ -1717,18 +1720,18 @@ subscribe or not.)
     }                
     
 This is a bit of a mess.  You might want to use the C<subscribe> parameter
-to C<create_ikc_client> instead.
+to L</spawn> instead.
 
 Subscription receipt timeout is currently set to 120 seconds.
 
-
+=back
 
 
 
 
 =head2 C<unsubscribe>
 
-Reverse of the C<subscribe> method.  However, it is currently not
+Reverse of the L</subscribe> method.  However, it is currently not
 documented well.
 
 =head2 C<ping>
@@ -1763,7 +1766,8 @@ This should allow you to sanely shut down your process.
 Allows a session to monitor the state of remote kernels.  Currently, a
 session is informed when a remote kernel is registered, unregistered,
 subscribed to or unsubscribed from.  One should make sure that the IKC alias
-exists before trying to monitor.  Do this by calling C<create_ikc_responder> 
+exists before trying to monitor.  Do this by calling 
+L<POE::Component::IKC::Responder>->spawn
 or in an C<on_connect> callback.
 
     $kernel->post('IKC', 'monitor', $remote_kernel_id, $states);
@@ -1771,7 +1775,7 @@ or in an C<on_connect> callback.
 =over 3
 
 =item C<$remote_kernel_id>
-    
+
 Name or alias or IKC specifier of the remote kernel you wish to monitor. 
 You can also specify C<*> to monitor ALL remote kernels.  If you do, your
 monitor will be called several times for a given kernel.  This is because a
@@ -1782,7 +1786,7 @@ kernel via $kernel->ID.  This suprises some people, but see the short note
 after the explanation of the callback parameters.
 
 Note: An effort has been made to insure that when monitoring C<*>,
-C<register> is first called with the remote kernel's unique ID, and
+L</register> is first called with the remote kernel's unique ID, and
 subsequent calls are aliases.  This can't be guaranteed at this time,
 however.
 
@@ -1791,6 +1795,8 @@ however.
 Hashref that specifies what callback states are called when something
 interesting happens.  If $state is empty or undef, the session will no
 longer monitor the given remote kernel.  
+
+=back
 
 =head2 Callback states
 
@@ -1814,7 +1820,8 @@ when the remote kernel disconnects.
 =item C<subscribe>
 
 Called when IKC succeeds in subscribing to a remote session.  ARG3 is an
-IKC::Specifier of what was subscribed to.
+IKC::Specifier of what was subscribed to.  Use this for posting to the proxy
+session.
 
 =item C<unsubscribe>
 
@@ -1855,7 +1862,7 @@ and is in fact a bit bloatful.
 
 =item C<ARG3>
 
-C<$state->{data}> ie any data you want.
+C<$state-E<gt>{data}> ie any data you want.
 
 =item C<ARG4> ... C<ARGN>
 
@@ -1890,7 +1897,6 @@ You are more then allowed (in fact, you are encouraged) to use the same
 callback states when monitoring multiple kernels.  In this case, you will
 find ARG0 useful for telling them apart.
 
-=back
 
     $kernel->post('IKC', 'monitor', '*', 
                     {register=>'remote_register',
@@ -1927,10 +1933,11 @@ Now we aren't even interested in 'Pulse';
 =head2 C<create_ikc_responder>
 
 This function creates the Responder session and object.  However, you don't
-need to call this directly, because C<IKC::Client> or C<IKC::Server> does
+need to call this directly, because L<POE::Component::IKC::Client> or 
+L<POE::Component::IKC::Server> does
 this for you.
 
-Deprecated, use C<spawn>.
+Deprecated, use L</spawn>.
 
 =head1 L<Note about SENDER>
 
@@ -1965,7 +1972,15 @@ Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 SEE ALSO
 
-L<POE>, L<POE::Component::IKC::Server>, L<POE::Component::IKC::Client>
+L<POE>, 
+L<POE::Component::IKC::Server>, 
+L<POE::Component::IKC::Client>,
+L<POE::Component::IKC::ClientLite>,
+L<POE::Component::IKC::Channel>,
+L<POE::Component::IKC::Proxy>,
+L<POE::Component::IKC::Freezer>,
+L<POE::Component::IKC::Specifier>.
+
 
 =cut
 

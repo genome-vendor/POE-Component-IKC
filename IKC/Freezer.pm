@@ -55,7 +55,7 @@ POE::Component::IKC::Freezer - Pure-Perl serialization method.
 
 =head1 DESCRIPTION
 
-This serializer uses C<Data::Dumper> and C<eval $code> to get the deed
+This serializer uses L<Data::Dumper> and C<eval $code> to get the deed
 done.  There is an obvious security problem here.  However, it has the
 advantage of being pure Perl and all modules come with the core Perl
 distribution.
