@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.23.2.1 2006/10/03 22:52:31 fil Exp $
+# $Id: Server.pm,v 1.23.2.3 2006/11/01 18:30:54 fil Exp $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.18';
+$VERSION = '0.1902';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -420,6 +420,7 @@ sub _stop
     DEBUG && 
         warn "$$: Server $heap->{name} _stop\n";
     # DEBUG_USR2 and check_kernel($kernel, $heap->{'is a child'}, 1);
+    # __peek( 1 );
 }
 
 #------------------------------------------------------------------------------
@@ -745,12 +746,15 @@ sub __peek
     
     my $ret = "Event Queue:\n";
   
+    my $events = {};
+
     foreach my $item (@queue) {
         $ret .= "\t* ID: ". $item->{ID}." - Index: ".$item->{index}."\n";
         $ret .= "\t\tPriority: ".$item->{priority}."\n";
         $ret .= "\t\tEvent: ".$item->{event}."\n";
 
         if($verbose) {
+            $events->{ $item->{source}->ID }{source} ++;
             $ret .= "\t\tSource: ".
                     $api->session_id_loggable($item->{source}).
                     "\n";
@@ -774,24 +778,36 @@ sub __peek
             my $refcount=$api->get_session_refcount($session);
             $ses.="\n\t\tref count: $refcount\n";
 
-            my $q=$api->get_session_extref_count($session);
-            $ref += $q;
-            $ses.="\t\textref count: $q\n" if $q;
+            my $q1=$api->get_session_extref_count($session);
+            $ref += $q1;
+            $ses.="\t\textref count: $q1\n" if $q1;
 
             my $hc=$api->session_handle_count($session);
             $ref += $hc;
-            $ses.="\t\thandle count: $q [keepalive]\n" if $hc;
+            $ses.="\t\thandle count: $q1 [keepalive]\n" if $hc;
 
             my @aliases=$api->session_alias_list($session);
             $ref += @aliases;
-            $q=join ',', @aliases;
-            $ses.="\t\tAliases: $q\n" if $q;
+            $q1=join ',', @aliases;
+            $ses.="\t\tAliases: $q1\n" if $q1;
 
             my @children = $api->get_session_children($session);
             if(@children) {
                 $ref += @children;
-                $q = join ',', map {$api->session_id_loggable($_)} @children;
-                $ses.="\t\tChildren: $q\n";
+                $q1 = join ',', map {$api->session_id_loggable($_)} @children;
+                $ses.="\t\tChildren: $q1\n";
+            }
+
+            $q1 = $events->{ $session->ID }{source};
+            if( $q1 ) {
+                $ret.="\t\tEvent source count: $q1 (Stay alive)\n";
+                $ref += $q1;
+            }
+
+            my $q1 = $events->{ $session->ID }{destination};
+            if( $q1 ) {
+                $ret.="\t\tEvent destination count: $q1 (Stay alive)\n";
+                $ref += $q1;
             }
 
             if($refcount != $ref) {

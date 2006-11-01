@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.17 2005/08/04 22:01:30 fil Exp $
+# $Id: ClientLite.pm,v 1.17.2.2 2006/11/01 18:30:54 fil Exp $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.18';
+$VERSION = '0.1902';
 
 sub DEBUG { 0 }
 
@@ -618,6 +618,13 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: ClientLite.pm,v $
+Revision 1.17.2.2  2006/11/01 18:30:54  fil
+Moved to version 0.1902
+
+Revision 1.17.2.1  2006/10/04 18:55:19  fil
+Tweak POD
+Add IKC.pm to MANIFEST
+
 Revision 1.17  2005/08/04 22:01:30  fil
 Fixed Channel shutdown code
 Documented how to shutdown a channel

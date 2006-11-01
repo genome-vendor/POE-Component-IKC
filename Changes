@@ -1,8 +1,15 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.1902 1 November 2006
+    - Forgot $VERSION in IKC.pm
+
+0.1901 3 October 2006
+    - Tweak the POD
+    - Forgot IKC.pm in MANIFEST
+
 0.1900 3 October 2006
     - The memory leaks (big and small) are now verified as gone with
-        POE 0.37 and perl 5.8.8.
+        POE 0.37 and perl 5.8.8.  (Thank you dw for test case.)
     - Remove Channel aliases.  DUH!
 
 0.1804 29 August 2006
@@ -10,7 +17,7 @@ Revision history for Perl extension POE::Component::IKC.
     - Check the POE leak
 
 0.1803 2 November 2005
-    - Use Scalar::UTIL
+    - Use Scalar::Util
     - Better debug messages
 
 0.18 21 June 2005

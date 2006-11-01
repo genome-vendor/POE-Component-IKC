@@ -97,6 +97,8 @@ sub _start
 sub _stop
 {
     my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
+    # POE::Component::IKC::Server::__peek( 1 );
+
     DEBUG and warn "Server: _stop\n";
 }
 

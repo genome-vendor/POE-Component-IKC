@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm,v 1.25.2.1 2006/10/03 22:52:31 fil Exp $
+# $Id: Responder.pm,v 1.25.2.3 2006/11/01 18:30:54 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1901';
+$VERSION = '0.1902';
 
 sub DEBUG { 0 }
 
@@ -77,7 +77,8 @@ sub _start
 
 sub _stop
 {
-    DEBUG and warn "$$: $_[HEAP] responder _stop\n";
+    DEBUG and 
+        warn "$$: $_[HEAP] responder _stop\n";
     # use YAML qw(Dump);
     # use Data::Denter;
     # warn Denter $poe_kernel;
@@ -1986,6 +1987,13 @@ L<POE::Component::IKC::Specifier>.
 
 
 $Log: Responder.pm,v $
+Revision 1.25.2.3  2006/11/01 18:30:54  fil
+Moved to version 0.1902
+
+Revision 1.25.2.2  2006/10/04 18:55:19  fil
+Tweak POD
+Add IKC.pm to MANIFEST
+
 Revision 1.25.2.1  2006/10/03 22:52:31  fil
 Fixed memory leak
 Added IKC.pm

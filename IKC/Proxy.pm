@@ -1,8 +1,8 @@
-# $Id: Proxy.pm,v 1.13 2005/09/14 02:02:54 fil Exp $
+# $Id: Proxy.pm,v 1.13.2.1 2006/11/01 18:30:54 fil Exp $
 package POE::Component::IKC::Proxy;
 
 ##############################################################################
-# $Id: Proxy.pm,v 1.13 2005/09/14 02:02:54 fil Exp $
+# $Id: Proxy.pm,v 1.13.2.1 2006/11/01 18:30:54 fil Exp $
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
@@ -21,7 +21,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_proxy);
-$VERSION = '0.18';
+$VERSION = '0.1902';
 
 sub DEBUG { 0 }
 
@@ -165,6 +165,9 @@ L<POE>, L<POE::Component::IKC>
 
 
 $Log: Proxy.pm,v $
+Revision 1.13.2.1  2006/11/01 18:30:54  fil
+Moved to version 0.1902
+
 Revision 1.13  2005/09/14 02:02:54  fil
 Version from IKC/Responder
 Now use Session->create, not ->new

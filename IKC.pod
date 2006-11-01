@@ -218,7 +218,6 @@ L<POE::Component::IKC::Specifier> -- Helper routines for parsing IKC
 specifiers.
 
 
-
 =head1 AUTHOR
 
 Philip <perl-ikc at pied.nu>

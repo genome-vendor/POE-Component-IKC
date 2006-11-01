@@ -170,6 +170,7 @@ sub do_child
         return;
     }
     my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-client $type";
+    DEBUG and warn "Running $exec";
     exec $exec;
     die "Couldn't exec $exec: $!\n";
 }
@@ -179,7 +180,7 @@ sub do_child
 sub _stop
 {
     my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
-    DEBUG and warn "Server: _stop\n";
+    DEBUG and warn "Server: _stop ($$)\n";
     ok(24);
 }
 

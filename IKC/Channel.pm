@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.20.2.1 2006/10/03 22:52:31 fil Exp $
+# $Id: Channel.pm,v 1.20.2.3 2006/11/01 18:30:53 fil Exp $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.18';
+$VERSION = '0.1902';
 
 sub DEBUG { 0 }
 
@@ -809,6 +809,13 @@ L<POE::Component::IKC::Responder>
 
 
 $Log: Channel.pm,v $
+Revision 1.20.2.3  2006/11/01 18:30:53  fil
+Moved to version 0.1902
+
+Revision 1.20.2.2  2006/10/04 18:55:19  fil
+Tweak POD
+Add IKC.pm to MANIFEST
+
 Revision 1.20.2.1  2006/10/03 22:52:31  fil
 Fixed memory leak
 Added IKC.pm
