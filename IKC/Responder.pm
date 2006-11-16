@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1903';
+$VERSION = '0.1904';
 
 sub DEBUG { 0 }
 
@@ -1986,77 +1986,3 @@ L<POE::Component::IKC::Specifier>.
 =cut
 
 
-$Log$
-Revision 1.25.2.3  2006/11/01 18:30:54  fil
-Moved to version 0.1902
-
-Revision 1.25.2.2  2006/10/04 18:55:19  fil
-Tweak POD
-Add IKC.pm to MANIFEST
-
-Revision 1.25.2.1  2006/10/03 22:52:31  fil
-Fixed memory leak
-Added IKC.pm
-
-Revision 1.25  2005/11/02 21:44:24  fil
-Moved to version 0.1803
-
-Revision 1.24  2005/11/02 21:44:02  fil
-_true_type now uses Scalar::Util::reftype()
-Better debug messages
-Subscription callback can be a code ref.
-Added channel_names
-
-Revision 1.23  2005/10/13 03:13:26  fil
-Upped the version
-
-Revision 1.22  2005/10/13 01:59:08  fil
-Added sig_TERM for daemontools
-
-Revision 1.21  2005/09/14 02:02:54  fil
-Version from IKC/Responder
-Now use Session->create, not ->new
-Improved formating
-DEBUG warnings, not print
-Proxy uses call() to work around the @$etc=() bug in POE
-
-Revision 1.20  2005/08/04 22:01:30  fil
-Fixed Channel shutdown code
-Documented how to shutdown a channel
-Freezer now checks for nfreeze first
-Moved to version 0.18
-Added USR1 (non-verbose kernel state dumping) to Server
-Improved Server kernel state dumping
-
-Revision 1.19  2005/06/09 04:20:55  fil
-Reconciled
-Added check to put() to a closed wheel in Channel
-
-Revision 1.18  2004/11/11 02:10:09  fil
-Changed pending stuff to a check of check_octets_out
-
-Revision 1.17  2004/05/27 01:04:24  fil
-Added on_error, which is automatically deprecated for the monitor stuff
-Fixed some of the test
-
-Revision 1.16  2004/05/13 19:51:21  fil
-Moved to signal_handled
-
-Revision 1.15  2002/05/02 19:35:54  fil
-Updated Chanages.
-Merged alias listing for publish/subtract
-Moved version
-
-Revision 1.14  2002/05/02 19:00:32  fil
-Fixed inform_monitor comming from IKC::Proxy/_stop.  We can't post()
-from _stop, so method call is turned into ->call().
-
-Revision 1.13  2001/10/27 03:14:45  fil
-Now works with latest CVS version of POE (0.1701)
-
-Revision 1.12  2001/09/06 23:13:42  fil
-Added doco for Responder->spawn
-Responder->spawn always returns true so that JAAS's factory doesn't complain
-
-Revision 1.11  2001/08/02 03:26:50  fil
-Added documentation.

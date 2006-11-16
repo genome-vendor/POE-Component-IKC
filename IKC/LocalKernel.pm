@@ -100,30 +100,3 @@ sub sig_INT
 
 __DATA__
 
-$Log$
-Revision 1.7  2005/06/09 04:20:55  fil
-Reconciled
-Added check to put() to a closed wheel in Channel
-
-Revision 1.6  2004/05/13 19:51:21  fil
-Moved to signal_handled
-
-Revision 1.5  2001/08/02 03:26:50  fil
-Added documentation.
-
-Revision 1.4  2001/07/25 21:06:08  fil
-Fixed usage bug in IKC::LocalKernel
-
-Revision 1.3  2001/07/25 20:58:10  fil
-IKC::LocalKernel now uses an alias() rather then refcount to stay alive.
-This way the kernel will exit normaly
-
-Revision 1.2  2001/07/25 07:25:14  fil
-Minor bug fixes.
-IKC/register, IKC/retract w/o a session alias uses ALL session aliases
-
-Revision 1.1  2001/07/25 04:01:44  fil
-Fixed bug that didn't caused multiple responders to be created if you used
-spawn.
-
-Added registering of local kernels.

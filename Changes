@@ -1,5 +1,8 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.1904 16 November 2006
+    - Channel now reacts better to IKC1 connections
+
 0.1903 16 November 2006
     - Added t/01_specifier.t
     - Fixed callback example in IKC.pod

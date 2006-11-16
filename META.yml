@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         POE-Component-IKC
-version:      0.1903
+version:      0.1904
 version_from: IKC.pm
 installdirs:  site
 requires:

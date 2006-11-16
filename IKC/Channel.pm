@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm 168 2006-11-16 19:57:48Z fil $
+# $Id: Channel.pm 169 2006-11-16 20:38:00Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.1903';
+$VERSION = '0.1904';
 
 sub DEBUG { 0 }
 
@@ -281,8 +281,10 @@ sub server_000
     unless(defined $line) {
         # wait for client to send HELLO
     } 
-    elsif( $line eq 'HELLO' or 
-                $line =~ /^HELLO IKC\d+$/ ) {         # compatible with IKC1
+    elsif( $line =~ /^HELLO IKC\d$/ ) {         # compatible with IKC1
+        $heap->{'wheel_client'}->put( 'NOT' );
+    }
+    elsif( $line eq 'HELLO' ) {
         $heap->{'wheel_client'}->put('IAM '.$kernel->ID());
 
         # put other server aliases here
@@ -808,31 +810,4 @@ L<POE::Component::IKC::Responder>
 
 =cut
 
-
-$Log$
-Revision 1.20.2.3  2006/11/01 18:30:53  fil
-Moved to version 0.1902
-
-Revision 1.20.2.2  2006/10/04 18:55:19  fil
-Tweak POD
-Add IKC.pm to MANIFEST
-
-Revision 1.20.2.1  2006/10/03 22:52:31  fil
-Fixed memory leak
-Added IKC.pm
-
-Revision 1.20  2005/09/14 02:02:54  fil
-Version from IKC/Responder
-Now use Session->create, not ->new
-Improved formating
-DEBUG warnings, not print
-Proxy uses call() to work around the @$etc=() bug in POE
-
-Revision 1.19  2005/08/04 22:01:30  fil
-Fixed Channel shutdown code
-Documented how to shutdown a channel
-Freezer now checks for nfreeze first
-Moved to version 0.18
-Added USR1 (non-verbose kernel state dumping) to Server
-Improved Server kernel state dumping
 

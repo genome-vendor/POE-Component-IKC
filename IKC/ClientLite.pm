@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1903';
+$VERSION = '0.1904';
 
 sub DEBUG { 0 }
 
@@ -617,78 +617,3 @@ L<POE>, L<POE::Component::IKC>
 
 
 
-$Log$
-Revision 1.17.2.2  2006/11/01 18:30:54  fil
-Moved to version 0.1902
-
-Revision 1.17.2.1  2006/10/04 18:55:19  fil
-Tweak POD
-Add IKC.pm to MANIFEST
-
-Revision 1.17  2005/08/04 22:01:30  fil
-Fixed Channel shutdown code
-Documented how to shutdown a channel
-Freezer now checks for nfreeze first
-Moved to version 0.18
-Added USR1 (non-verbose kernel state dumping) to Server
-Improved Server kernel state dumping
-
-Revision 1.16  2005/06/09 04:20:55  fil
-Reconciled
-Added check to put() to a closed wheel in Channel
-
-Revision 1.15  2004/05/13 19:51:21  fil
-Moved to signal_handled
-
-Revision 1.14  2002/05/02 19:35:54  fil
-Updated Chanages.
-Merged alias listing for publish/subtract
-Moved version
-
-Revision 1.13  2001/09/06 23:13:42  fil
-Added doco for Responder->spawn
-Responder->spawn always returns true so that JAAS's factory doesn't complain
-
-Revision 1.12  2001/08/02 03:26:50  fil
-Added documentation.
-
-Revision 1.11  2001/07/24 20:45:54  fil
-Fixed some win32 things like WSAEAFNOSUPPORT
-Added more tests to t/20_clientlite.t
-
-Revision 1.10  2001/07/13 06:59:45  fil
-Froze to 0.13
-
-Revision 1.9  2001/07/13 01:14:00  fil
-Fixed loading of serializers that contain :: in Client and ClientLite
-Fixed serializer negociation in Channel
-
-Revision 1.8  2001/07/12 05:36:22  fil
-Added doco to ClientLite
-
-Revision 1.7  2001/07/12 04:15:17  fil
-Added small and totaly incomplete test case for IKC::ClientLite
-PoCo::IKC::ClientLite now doesn't throw warnings when it can't
-    find Storable or FreezeThaw.
-
-Revision 1.6  2001/07/12 03:49:59  fil
-Fixed bug in ClientLite for loading Freezers that have :: in their names
-
-Revision 1.5  2001/07/12 03:46:33  fil
-Added IKC::Freezer to ClientLite
-
-Revision 1.4  2001/07/12 03:42:18  fil
-Added IKC::Channel::spawn
-Fixed IKC::Channel so that you can specify what module to use for
-    serialization.
-Added IKC::Freezer
-
-Revision 1.3  2001/07/06 02:27:51  fil
-Version 0.13pre9
-
-Revision 1.2  2001/07/06 02:23:35  fil
-Fixed bunch of things in doco
-Changed my e-mail address
-
-Revision 1.1.1.1  2001/06/07 04:32:02  fil
-initial import to CVS
