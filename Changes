@@ -1,5 +1,10 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.1903 16 November 2006
+    - Added t/01_specifier.t
+    - Fixed callback example in IKC.pod
+    - Allow 'poe:'-less specifiers
+
 0.1902 1 November 2006
     - Forgot $VERSION in IKC.pm
 

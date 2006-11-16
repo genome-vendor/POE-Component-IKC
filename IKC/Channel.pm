@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm,v 1.20.2.3 2006/11/01 18:30:53 fil Exp $
+# $Id: Channel.pm 168 2006-11-16 19:57:48Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.1902';
+$VERSION = '0.1903';
 
 sub DEBUG { 0 }
 
@@ -269,7 +269,7 @@ sub _set_phase
         # generate this event on input
     $heap->{'wheel_client'}->event(InputEvent => $neg.$phase);
     DEBUG && warn "Negociation phase $neg$phase.\n";
-    $kernel->yield($neg.$phase);               # Start the negociation phase
+    $kernel->yield($neg.$phase);                # Start the negociation phase
     return;
 }
 
@@ -281,7 +281,8 @@ sub server_000
     unless(defined $line) {
         # wait for client to send HELLO
     } 
-    elsif($line eq 'HELLO') {
+    elsif( $line eq 'HELLO' or 
+                $line =~ /^HELLO IKC\d+$/ ) {         # compatible with IKC1
         $heap->{'wheel_client'}->put('IAM '.$kernel->ID());
 
         # put other server aliases here
@@ -808,7 +809,7 @@ L<POE::Component::IKC::Responder>
 =cut
 
 
-$Log: Channel.pm,v $
+$Log$
 Revision 1.20.2.3  2006/11/01 18:30:53  fil
 Moved to version 0.1902
 

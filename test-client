@@ -93,8 +93,10 @@ sub calling
 {
     DEBUG and warn "Client: calling\n";
     my($kernel, $heap)=@_[KERNEL, HEAP];
-    $kernel->call(IKC=>'call', "poe://$heap->{name}/test/called"=>'called',
-                        {state=>'callback'});
+    $kernel->call( IKC=>'call', 
+                    "poe://$heap->{name}/test/called"=>'called',
+                    'poe:callback' 
+                 );
 }
 
 sub callback

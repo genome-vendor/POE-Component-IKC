@@ -36,7 +36,7 @@ NOTICE
 
 WriteMakefile(
     'NAME'	=> 'POE::Component::IKC',
-    'VERSION_FROM' => 'IKC/Responder.pm', # finds $VERSION
+    'VERSION_FROM' => 'IKC.pm', # finds $VERSION
     DISTNAME => 'POE-Component-IKC',
     dist=>{COMPRESS=>'gzip -9f', EXT=>'gz'},
     PREREQ_PM =>{

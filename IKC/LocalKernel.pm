@@ -1,7 +1,7 @@
 package POE::Component::IKC::LocalKernel;
 
 ############################################################
-# $Id: LocalKernel.pm,v 1.7 2005/06/09 04:20:55 fil Exp $
+# $Id: LocalKernel.pm 79 2005-06-09 04:20:55Z fil $
 # Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
@@ -100,7 +100,7 @@ sub sig_INT
 
 __DATA__
 
-$Log: LocalKernel.pm,v $
+$Log$
 Revision 1.7  2005/06/09 04:20:55  fil
 Reconciled
 Added check to put() to a closed wheel in Channel

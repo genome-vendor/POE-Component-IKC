@@ -47,7 +47,7 @@ Call semantics are impossible, because they would cause POE to block.  IKC
 call is a bit different.  It is a 'post', but with an extra RSVP parameter.
 
     $kernel->post('IKC', 'call', 'poe://Server/hello/world', $ONE_arg, 
-                  'callback');
+                  'poe:callback');
 
 This will cause the returned value of the foreign state to be sent to state
 'callback' in the current session.  You may want the callback to be in

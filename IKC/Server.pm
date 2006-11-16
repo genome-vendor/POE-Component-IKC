@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm,v 1.23.2.3 2006/11/01 18:30:54 fil Exp $
+# $Id: Server.pm 168 2006-11-16 19:57:48Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.1902';
+$VERSION = '0.1903';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }

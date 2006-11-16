@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm,v 1.17.2.2 2006/11/01 18:30:54 fil Exp $
+# $Id: ClientLite.pm 168 2006-11-16 19:57:48Z fil $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1902';
+$VERSION = '0.1903';
 
 sub DEBUG { 0 }
 
@@ -617,7 +617,7 @@ L<POE>, L<POE::Component::IKC>
 
 
 
-$Log: ClientLite.pm,v $
+$Log$
 Revision 1.17.2.2  2006/11/01 18:30:54  fil
 Moved to version 0.1902
 

@@ -1,8 +1,8 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         POE-Component-IKC
-version:      0.1902
-version_from: IKC/Responder.pm
+version:      0.1903
+version_from: IKC.pm
 installdirs:  site
 requires:
     POE:                           0.32
