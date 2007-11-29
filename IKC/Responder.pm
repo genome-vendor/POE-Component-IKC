@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm 168 2006-11-16 19:57:48Z fil $
+# $Id: Responder.pm 311 2007-11-29 21:15:53Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.1904';
+$VERSION = '0.2000';
 
 sub DEBUG { 0 }
 
@@ -1154,7 +1154,8 @@ sub _subscribe_receipt
 
     # cleanup the subscription request
     if(exists $self->{subscription_callback}{$unique}) {
-        DEBUG and warn "Subscription [$unique] callback... ";
+        DEBUG and 
+            warn "Subscription [$unique] callback... ";
         my $fiddle=$self->{subscription_callback}{$unique};
 
         if($fiddle->{sessions}->{$spec} and $accepted) {
@@ -1164,7 +1165,8 @@ sub _subscribe_receipt
 
         $fiddle->{count}-- if $fiddle->{count};
         if(0==$fiddle->{count}) {
-            DEBUG and warn "yes.";
+            DEBUG and 
+                warn "yes.";
             delete $self->{subscription_callback}{$unique};
             # use Data::Denter;
             # warn "Fiddle =", Denter $fiddle;

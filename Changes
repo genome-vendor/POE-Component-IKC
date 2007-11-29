@@ -1,5 +1,19 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2000 29 November 2007
+    - FreezeThaw::thow has started to return an array.  We only want the first
+        element... 
+            Thank you Faiz Kazi
+    - Better timeout handling in IKC::ClientLite.
+    - Documented the above
+
+0.1905 8 August 2007
+    - It was possible for a IKC::Server child process to inherit
+        some delay()s, clear those also.
+    - Clear all delay()s at the least provocation (INT, TERM, errors, etc)
+    - Created IKC::Server::_delete_wheel
+    - Use POE::Component::Daemon->peek
+
 0.1904 16 November 2006
     - Channel now reacts better to IKC1 connections
 

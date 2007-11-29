@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm 168 2006-11-16 19:57:48Z fil $
+# $Id: Client.pm 311 2007-11-29 21:15:53Z fil $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1904';
+$VERSION = '0.2000';
 
 sub DEBUG { 0 }
 

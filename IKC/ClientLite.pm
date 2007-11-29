@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm 168 2006-11-16 19:57:48Z fil $
+# $Id: ClientLite.pm 312 2007-11-29 21:24:42Z fil $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.1904';
+$VERSION = '0.2000';
 
 sub DEBUG { 0 }
 
@@ -45,12 +45,14 @@ sub create_ikc_client
     $parms{ip}||='localhost';           
     $parms{port}||=603;                 # POE! (almost :)
     $parms{name}||="Client$$";
+    $parms{connect_timeout} ||= $parms{timeout} || 30;
     $parms{timeout}||=30;
     $parms{serialiser}||=_default_freezer();
+    $parms{block_size} ||= 65535;
 
     my %self;
-    @self{qw(ip port name serialiser timeout)}=
-            @parms{qw(ip port name serialiser timeout)};
+    @self{qw(ip port name serialiser timeout connect_timeout block_size)}=
+            @parms{qw(ip port name serialiser timeout connect_timeout block_size)};
 
     eval {
         @{$self{remote}}{qw(freeze thaw)}=_get_freezer($self{serialiser});
@@ -86,18 +88,24 @@ sub connect
     DEBUG && print "Connecting to $name...\n";
     my $sock;
 
+    my $DONE = 0;
     eval {
         local $SIG{__DIE__}='DEFAULT';
         local $SIG{__WARN__};
-        $sock=IO::Socket::INET->new(PeerAddr=>$self->{ip},
+        local $SIG{ALRM} = sub { die "alarm\n" }; # NB: \n required
+        $sock=IO::Socket::INET->new( PeerAddr=>$self->{ip},
                                      PeerPort=>$self->{port},
-                                     xxProto=>'tcp', Timeout=>$self->{timeout},);
+                                     # Proto=>'tcp', 
+                                     Timeout=>$self->{connect_timeout}
+                                    );
         die "Unable to connect to $name: $!\n" unless $sock;
         $sock->autoflush(1);
         local $/="\cM\cJ";
         local $\="\cM\cJ";
         $sock->print('HELLO');
         my $resp;
+
+        alarm( $self->{connect_timeout} );
         while (defined($resp=$sock->getline))       # phase 000
         {
             chomp($resp);
@@ -112,25 +120,33 @@ sub connect
         die "Phase 000: $!\n" unless defined $resp;
 
 
+        alarm( $self->{connect_timeout} );
         $sock->print("IAM $self->{name}");          # phase 001
         chomp($resp=$sock->getline);
         die "Phase 001: $!\n" unless defined $resp;
         die "Didn't get OK from $name\n" unless $resp eq 'OK';
         $sock->print("DONE");
 
+        alarm( $self->{connect_timeout} );
         $sock->print("FREEZER $self->{serialiser}");# phase 002
         chomp($resp=$sock->getline);
         die "Phase 002: $!\n" unless defined $resp;
         die "$name refused $self->{serialiser}\n" unless $resp eq 'OK';
 
+        alarm( $self->{connect_timeout} );
         $sock->print('WORLD');                      # phase 003
         chomp($resp=$sock->getline);
+        alarm( 0 );
         die "Phase 003: $!\n" unless defined $resp;
         die "Didn't get UP from $name\n" unless $resp eq 'UP';        
+        $DONE = 1;
     };
     if($@)
     {
         $self->{error}=$error=$@;
+        if( $error eq "alarm\n" ) {
+            $self->{error}=$error="Timeout connecting to $self->{ip}:$self->{port}";
+        }
         return;
     } 
     $remote->{socket}=$sock;
@@ -181,7 +197,7 @@ sub DESTROY
 }
 sub END
 {
-    DEBUG and print 'end';
+    DEBUG and print "end\n";
 }
 
 #----------------------------------------------------
@@ -330,8 +346,8 @@ sub _response
     $rsvp=specifier_parse($rsvp);
     my $remote=$self->{remote};
 
-    my $timeout=$remote->{socket}->timeout();
-    my $stopon=time+$timeout;
+    my $start = time;
+    my $stopon = $start + $self->{timeout};
 
     my $select=IO::Select->new() or die $!;     # create the select object
     $select->add($remote->{socket});
@@ -339,10 +355,18 @@ sub _response
     my(@ready, $s, $raw, $frozen, $ret, $l, $need);
     $raw='';
 
-    while ($stopon >= time)                     # do it until time's up
-    {
-        @ready=$select->can_read($stopon-time); # this is the select
-        last unless @ready;                     # nothing ready == timout
+    my $blocks = 0;
+    do {{
+        my $timeout = $stopon-time;
+        if( $timeout <= 0 ) {
+            $timeout = 1;
+        }
+#        Torture::my_warn( "timeout=$timeout" );
+        @ready=$select->can_read( $timeout );   # this is the select
+        unless( @ready ) {                     # nothing ready == timeout
+            # Torture::my_warn( 'select hates me' );
+            last;
+        }
     
         foreach $s (@ready)                     # let's see what's ready...
         {
@@ -352,12 +376,14 @@ sub _response
         DEBUG && print "Got something...\n";
         
                                     # read in another chunk
-        $l=$remote->{socket}->sysread($raw, 512, length($raw)); 
+        $l = $remote->{socket}->sysread($raw, $self->{block_size}, 
+                                                length($raw)); 
 
         unless(defined $l) {                    # disconnect, maybe?
             $remote->{connected}=0 if $!==EPIPE;               
             die "Error reading: $!\n";
         }
+        $blocks ++;
 
         if(not $need and $raw=~s/(\d+)\0//s) {  # look for a marker?
             $need=$1 ;
@@ -368,13 +394,14 @@ sub _response
 
         if(length($raw) >= $need)               # do we have all we want?
         {
+            # Torture::my_warn( 'Got it all' );
             DEBUG && print "Got it all...\n";
 
             $frozen=substr($raw, 0, $need);     # seems so...
             substr($raw, 0, $need)='';
             my $msg=$self->{remote}{thaw}->($frozen);   # thaw the message
+            DEBUG && print "msg=", Dumper $msg;
             my $to=specifier_parse($msg->{event});
-            DEBUG && print Dumper $msg;
 
             die "$msg->{params}\n" if($msg->{is_error});    # throw an error out
             DEBUG && print "Not an error...\n";
@@ -395,15 +422,19 @@ sub _response
                 next;
             }
 
-            if($wantarray) {
+            if( $wantarray ) {
                 DEBUG and print "Wanted an array\n";
                 return @{$msg->{params}} if ref $msg->{params} eq 'ARRAY';
             }
             return $msg->{params};              # finaly!
         }
-    }
+        # Torture::my_warn( "blocks=$blocks l=$l need=$need, got=", length $raw );
+    }} while ($stopon >= time) ;     # do it until time's up
+
     $remote->{connected}=0;
-    die "Timed out waiting for resonse\n";
+    confess "Timed out waiting for response ", specifier_name( $rsvp );
+#    die "Timed out waiting for response ", specifier_name( $rsvp ), "\n",
+#        "start=$start stopon=$stopon now=", time;
 }
 
 
@@ -458,13 +489,17 @@ sub _get_freezer
     my $thaw=$freezer->can('thaw');
     carp "$freezer doesn't have a thaw method" unless $thaw;
 
-
     # If it's an object, we use closures to create a $self->method()
     my $tf=$freeze;
     my $tt=$thaw;
     if(ref $freezer) {
-        $tf=sub {$freeze->($freezer, @_)};
-        $tt=sub {$thaw->($freezer, @_)};
+        $tf=sub {  return $freeze->($freezer, @_) };
+        $tt=sub {  return ($thaw->($freezer, @_))[0] };
+    }
+    else {
+        # FreezeThaw::thaw returns an array now!  We only want the first
+        # element.
+        $tt=sub {  return ($thaw->( @_ ))[0] };
     }
     return($tf, $tt);
 }
@@ -516,8 +551,29 @@ If it can't it returns an error.  If it can, it will send he packet again.  If
 =head2 create_ikc_client
 
 Creates a new PoCo::IKC::ClientLite object.  Parameters are supposedly
-compatible with PoCo::IKC::Client, but serializers and unix sockets aren't
-handled yet...
+compatible with PoCo::IKC::Client, but unix sockets aren't
+handled yet...  What's more, there are 3 additional parameters:
+
+=over 4
+
+=item block_size
+
+Size, in octets (8 bit bytes), of each block that is read from the socket
+at a time.  Defaults to C<65535>.
+
+=item timeout
+
+Time, in seconds, that C<call> and C<post_respond> will wait for a
+response.  Defaults to 30 seconds.
+
+=item connect_timeout
+
+Time, in seconds, to wait for a phase of the connection negotiation to
+complete.  Defaults to C<timeout>.  There are 4 phases of negotiation, so a
+the default C<connect_timeout> of 30 seconds means it could potentialy take
+2 minutes to connect.
+
+=back
 
 =head2 connect
 
@@ -569,7 +625,7 @@ C<$data> followed by a specifier that should be used to post back.
     {
         my($kernel, $heap, $args)=@_[KERNEL, HEAP, ARG0];
         my $p=$args->[0];
-        my $heap->{rsvp}=$args->[1];
+        $heap->{rsvp}=$args->[1];
         # .... do lotsa stuff here
     }
 

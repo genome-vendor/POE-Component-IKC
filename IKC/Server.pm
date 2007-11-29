@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 168 2006-11-16 19:57:48Z fil $
+# $Id: Server.pm 311 2007-11-29 21:15:53Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.1904';
+$VERSION = '0.2000';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -130,6 +130,31 @@ sub _select_define
     die "No socket_handle in $heap->{wheel}, $err.\n" unless $c;
     return;
 }
+
+#----------------------------------------------------
+# Drop the wheel
+sub _delete_wheel
+{
+    my( $heap ) = @_;
+    return unless $heap->{wheel};
+    my $w = delete $heap->{wheel};
+    $w->DESTROY;
+    return;
+}
+
+
+#----------------------------------------------------
+# Delete all delays
+sub _delete_delays
+{
+    $poe_kernel->delay('rogues');
+    $poe_kernel->delay('waste_time');
+    $poe_kernel->delay('babysit');
+    $poe_kernel->delay( 'retry' );
+
+    return;
+}
+
 
 #----------------------------------------------------
 # Accept POE's standard _start event, and set up the listening socket
@@ -287,13 +312,15 @@ sub babysit
                 $time=eval{$table{$pid}->utime + $table{$pid}->stime};
                 warn $@ if $@;
                 # utime and stime are Linux-only :(
+                $time /= 1_000_000 if $time;    # in micro-seconds
 
-                if($time and $time > 600_000) { # arbitrary limit of 10 minutes
+                if($time and $time > 600) { # arbitrary limit of 10 minutes
                     $rogues{$pid}=$table{$pid};
-                    # DEBUG and 
-                        warn "$$: $pid hass gone rogue, time=$time ms\n";
+                        warn "$$: $pid has gone rogue, time=$time s\n";
                 } else {
-                    warn "$$: child $pid has utime+stime=$time ms\n";
+                    # DEBUG and 
+                        warn "$$: child $pid has utime+stime=$time s\n"
+                            if $time > 1;
                     $ok{$pid}=1;
                 }
 
@@ -431,16 +458,9 @@ sub shutdown
     DEBUG and 
         warn "$$: Server $heap->{name} shutdown\n";
 
-    my $w=delete $heap->{wheel};      # close socket
-    # WORK AROUND
-    # $w->DESTROY;
-    if($heap->{children} and %{$heap->{children}}) {
-        $kernel->delay('rogues');   # we no longer care about rogues
-    }
-    $kernel->delay('waste_time');   # get it OVER with
-    if( $heap->{babysit} ) {
-        $kernel->delay('babysit');      # get it OVER with
-    }
+    _delete_wheel( $heap );         # close socket
+    _delete_delays();               # get it OVER with
+
     # -GC
     $kernel->alias_remove("IKC Server $heap->{wheel_address}");
     $heap->{'die'}=1;               # prevent race conditions
@@ -459,7 +479,7 @@ sub error
     if($errnum==EADDRINUSE) {       # EADDRINUSE
         warn "$$: IKC Address $heap->{wheel_address} in use\n";
         $heap->{'die'}=1;
-        delete $heap->{wheel};
+        _delete_wheel( $heap );
         $ignore=1;
     } elsif($errnum==WSAEAFNOSUPPORT) {
         # Address family not supported by protocol family.
@@ -511,16 +531,14 @@ sub accept
     if ($heap->{'is a child'}) {
 
         if (--$heap->{connections} < 1) {
-            DEBUG and 
+            # DEBUG and 
                 warn "$$: ************* Game over\n";
             $kernel->delay('waste_time');
-            delete $heap->{wheel};
-#            $kernel->post(IKC=>'shutdown');
-#            check_kernel($kernel);
-#            $kernel->yield('_stop');
+            _delete_wheel( $heap );
+
         } else {
-            DEBUG and 
-                warn "$$: $heap->{connections} left\n";
+            # DEBUG and 
+                warn "$$: $heap->{connections} connections left\n";
         }
     } else {
         warn "$$: Master client got a connect!  this sucks!\n";
@@ -582,10 +600,13 @@ sub fork
                                             # limit sessions, then die off
         $heap->{connections}    = $heap->{"max connections"};   
 
+        # These signals are no longer our problem
         $kernel->sig('CHLD');
         $kernel->sig('INT');
-        # remove the wait for babysit
-        $kernel->delay('babysit') if $heap->{'babysit'};
+
+        # remove any waits that might be around
+        _delete_delays();               # get it OVER with
+
         delete @{$heap}{qw(rogues proctable)};
 
         # Tell everyone we are now a child
@@ -670,10 +691,12 @@ sub sig_INT
     if($heap->{children}) {
         warn "$$ SIGINT\n";
         $heap->{'die'}=1;
-        $kernel->delay('waste_time');   # kill this event
+        # kill all events
+        _delete_delays();               # get it OVER with
     } else {
-        delete $heap->{wheel};
+        _delete_wheel( $heap );
     }    
+    $kernel->post( IKC => 'shutdown' );
     $kernel->sig_handled();             # INT is terminal
     return;
 }
@@ -689,8 +712,13 @@ sub sig_TERM
 
     warn "$$ SIGTERM\n";
     $heap->{'die'}=1;
-    $kernel->delay('waste_time');   # kill this event
+
+    _delete_wheel( $heap );
+
+    _delete_delays();               # get it OVER with
+
     $kernel->post( IKC => 'shutdown' );
+
     $kernel->sig_handled();             # TERM is terminal
     return;
 }
@@ -736,11 +764,19 @@ sub __peek
     my($verbose)=@_;
     eval {
         require POE::API::Peek;
+        require POE::Component::Daemon;
     };
     if($@) {
         DEBUG and warn "Failed to load POE::API::Peek: $@";
         return;
     }
+    my $ret = Daemon->peek( $verbose );
+
+    $ret =~ s/\n/\n$$: /g;
+    warn "$$: $ret";
+    return 1;
+
+
     my $api=POE::API::Peek->new();
     my @queue = $api->event_queue_dump();
     
@@ -780,7 +816,7 @@ sub __peek
 
             my $q1=$api->get_session_extref_count($session);
             $ref += $q1;
-            $ses.="\t\textref count: $q1\n" if $q1;
+            $ses.="\t\textref count: $q1 [keepalive]\n" if $q1;
 
             my $hc=$api->session_handle_count($session);
             $ref += $hc;

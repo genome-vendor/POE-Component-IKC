@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm 169 2006-11-16 20:38:00Z fil $
+# $Id: Channel.pm 311 2007-11-29 21:15:53Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.1904';
+$VERSION = '0.2000';
 
 sub DEBUG { 0 }
 
@@ -623,13 +623,16 @@ sub channel_send
 {
     my ($heap, $request)=@_[HEAP, ARG0];
 
-    DEBUG && warn "$$: Sending data...\n";
+    DEBUG && 
+        warn "$$: Sending data...\n";
         # add our name so the foreign channel can find us
         # TODO should we do this?  or should the other end do this?
     $request->{rsvp}->{kernel}||=$heap->{kernel_name}
             if ref($request) and $request->{rsvp};
 
     if($heap->{'wheel_client'}) {
+        # use Data::Dumper;
+        # warn "Sending ", Dumper $request;
         $heap->{'wheel_client'}->put($request);
     }
     else {
@@ -649,7 +652,8 @@ sub channel_send
 sub channel_flushed
 {
     my($heap, $wheel)=@_[HEAP, ARG0];
-    DEBUG && warn "$$: Flushed data...\n";
+    DEBUG && 
+        warn "$$: Flushed data...\n";
     if($heap->{go_away}) {
         _close_channel($heap);
     }
