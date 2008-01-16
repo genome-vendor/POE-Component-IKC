@@ -1,7 +1,11 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2001 16 January 2008
+    - Added copyright and license notices to all POD, as requested by
+        Ernesto Hernandez-Novich.
+
 0.2000 29 November 2007
-    - FreezeThaw::thow has started to return an array.  We only want the first
+    - FreezeThaw::thaw has started to return an array.  We only want the first
         element... 
             Thank you Faiz Kazi
     - Better timeout handling in IKC::ClientLite.

@@ -1,13 +1,13 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 311 2007-11-29 21:15:53Z fil $
+# $Id: Server.pm 322 2008-01-16 16:40:45Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2001,2002,2004 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.2000';
+$VERSION = '0.2001';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -991,6 +991,15 @@ multicast events, I'll change this behaviour.
 =head1 AUTHOR
 
 Philip Gwyn, <perl-ikc at pied.nu>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See L<http://www.perl.com/language/misc/Artistic.html>
 
 =head1 SEE ALSO
 

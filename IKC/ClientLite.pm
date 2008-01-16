@@ -1,10 +1,10 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm 312 2007-11-29 21:24:42Z fil $
+# $Id: ClientLite.pm 322 2008-01-16 16:40:45Z fil $
 # By Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999,2002,2004 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.2000';
+$VERSION = '0.2001';
 
 sub DEBUG { 0 }
 
@@ -663,6 +663,15 @@ this isn't really a kernel.  But hey.
 =head1 AUTHOR
 
 Philip Gwyn, <perl-ikc at pied.nu>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See L<http://www.perl.com/language/misc/Artistic.html>
 
 =head1 SEE ALSO
 

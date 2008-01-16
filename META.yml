@@ -1,8 +1,8 @@
 --- #YAML:1.0
 name:                POE-Component-IKC
-version:             0.2000
-abstract:            ~
-license:             ~
+version:             0.2001
+abstract:            Inter-Kernel Communication for POE
+license:             perl
 generated_by:        ExtUtils::MakeMaker version 6.36
 distribution_type:   module
 requires:     

@@ -31,6 +31,8 @@ POE::Component::IKC -- POE Inter-Kernel Communication
     }
 
 
+
+
 =head2 Post a state on a foreign kernel
 
     $kernel->post('IKC', 'post', "poe://Server/session/state", $ONE_arg);
@@ -220,4 +222,15 @@ specifiers.
 
 =head1 AUTHOR
 
-Philip <perl-ikc at pied.nu>
+Philip Gwyn <perl-ikc at pied.nu>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+See L<http://www.perl.com/language/misc/Artistic.html>
+
+=cut
