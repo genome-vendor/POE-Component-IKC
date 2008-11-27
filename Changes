@@ -1,5 +1,9 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2002 26 November 2008
+    - Added call to $kernel->_data_sig_initialize, otherwise child processes
+        will never exit
+
 0.2001 16 January 2008
     - Added copyright and license notices to all POD, as requested by
         Ernesto Hernandez-Novich.

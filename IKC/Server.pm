@@ -592,8 +592,12 @@ sub fork
                                         # child becomes a child server
     else {
         $heap->{verbose} and warn "$$: Created ", scalar localtime, "\n";
-        # Clean out stuff that the parent needs but not the children
 
+        # This resets some kernel data that was preventing the child process's
+        # kernel from becoming IDLE
+        $kernel->_data_sig_initialize;
+
+        # Clean out stuff that the parent needs but not the children
         $heap->{'is a child'}   = 1;        # don't allow fork
         $heap->{'failed forks'} = 0;
         $heap->{children}={};               # don't kill child processes
