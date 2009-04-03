@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: Server.pm 361 2009-04-03 07:37:32Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -60,7 +60,7 @@ sub create_ikc_server
                     package_states => [ 
                         $params{package} =>
                         [qw(
-                            _start _stop error
+                            _start _stop error _child
                             accept fork retry waste_time
                             babysit rogues shutdown
                             sig_CHLD sig_INT sig_USR2 sig_USR1 sig_TERM
@@ -253,6 +253,22 @@ sub _start
 }
 
 #------------------------------------------------------------------------------
+sub _child
+{
+    my( $heap, $kernel, $op, $child, $ret ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
+    return unless $op eq 'lose';
+    DEBUG and 
+        warn "$$: _child op=$op child=$child ret=$ret wheel=$heap->{wheel}";
+    unless( $heap->{wheel} ) {  # no wheel == GAME OVER
+        DEBUG and 
+            warn "$$: }}}}}}}}}}}}}}} Game over\n";
+        # TODO: Using shutdown is a stop-gap measure.  Maybe the daemon
+        # wants to stay alive even if IKC was shutdown...
+        $kernel->call( IKC => 'shutdown' );
+    }
+}
+
+#------------------------------------------------------------------------------
 # This event keeps this POE kernel alive
 sub waste_time
 {
@@ -314,7 +330,7 @@ sub babysit
                 # utime and stime are Linux-only :(
                 $time /= 1_000_000 if $time;    # in micro-seconds
 
-                if($time and $time > 600) { # arbitrary limit of 10 minutes
+                if($time and $time > 1200) { # arbitrary limit of 20 minutes
                     $rogues{$pid}=$table{$pid};
                         warn "$$: $pid has gone rogue, time=$time s\n";
                 } else {
@@ -531,8 +547,8 @@ sub accept
     if ($heap->{'is a child'}) {
 
         if (--$heap->{connections} < 1) {
-            # DEBUG and 
-                warn "$$: ************* Game over\n";
+            DEBUG and 
+                warn "$$: {{{{{{{{{{{{{{{ Game over\n";
             $kernel->delay('waste_time');
             _delete_wheel( $heap );
 
@@ -768,18 +784,20 @@ sub __peek
     my($verbose)=@_;
     eval {
         require POE::API::Peek;
-        require POE::Component::Daemon;
     };
     if($@) {
         DEBUG and warn "Failed to load POE::API::Peek: $@";
         return;
     }
-    my $ret = Daemon->peek( $verbose );
-
-    $ret =~ s/\n/\n$$: /g;
-    warn "$$: $ret";
-    return 1;
-
+    eval {
+        require POE::Component::Daemon;
+    };
+    unless( $@ ) {
+        my $ret = Daemon->peek( $verbose );
+        $ret =~ s/\n/\n$$: /g;
+        warn "$$: $ret";
+        return 1;
+    }
 
     my $api=POE::API::Peek->new();
     my @queue = $api->event_queue_dump();
@@ -809,7 +827,7 @@ sub __peek
         $ret.="Keepalive " unless $verbose;
         $ret.="Sessions: \n";
         my $ses;
-        foreach my $session ($api->session_list) {  
+        foreach my $session ( sort { $a->ID <=> $b->ID } $api->session_list) {  
             my $ref=0;
             $ses='';
 
@@ -844,7 +862,7 @@ sub __peek
                 $ref += $q1;
             }
 
-            my $q1 = $events->{ $session->ID }{destination};
+            $q1 = $events->{ $session->ID }{destination};
             if( $q1 ) {
                 $ret.="\t\tEvent destination count: $q1 (Stay alive)\n";
                 $ref += $q1;

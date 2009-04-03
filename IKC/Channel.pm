@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: Channel.pm 358 2009-04-03 07:25:38Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -44,7 +44,7 @@ sub create_ikc_channel
     my %p;
     @p{qw(handle name on_connect subscribe rname unix aliases serializers)}
             = @_;
-    __PACKAGE__->spawn(%p);
+    return __PACKAGE__->spawn(%p);
 }
 
 sub spawn
@@ -52,7 +52,7 @@ sub spawn
     my $package=shift;
     my %params=@_;
 
-    POE::Session->create( 
+    return POE::Session->create( 
                 inline_states => {
                     _start => \&channel_start,
                     _stop  => \&channel_stop,
@@ -76,7 +76,7 @@ sub spawn
                     'sig_INT'  => \&sig_INT
                }, 
                args => [\%params]
-           );
+           )->ID;
 }
 
 #----------------------------------------------------
@@ -175,6 +175,7 @@ sub channel_start
     }
 
     _set_phase($kernel, $heap, '000');
+    $kernel->call( 'IKC', 'register_channel' );
 }
 
 #----------------------------------------------------
@@ -321,7 +322,7 @@ sub negociate_001
         }
     } 
     else {
-        warn "Recieved '$line' during phase 001\n";
+        warn "Received '$line' during phase 001\n";
         # prod far side into saying something coherrent
         $heap->{wheel_client}->put('NOT') unless $line eq 'NOT';
     }
@@ -602,7 +603,8 @@ sub channel_receive
 {
     my ($kernel, $heap, $request) = @_[KERNEL, HEAP, ARG0];
 
-    DEBUG && warn "$$: Recieved data...\n";
+    DEBUG && 
+        warn "$$: Received data...\n";
     # we won't trust the other end to set this properly
     $request->{errors_to}={ kernel=>$heap->{remote_ID},
                             session=>'IKC',
@@ -665,9 +667,11 @@ sub channel_flushed
 sub channel_close
 {
     my ($heap)=$_[HEAP];
-    DEBUG && 
-        warn "$$: channel_close *****************************************\n";
-    $heap->{shutdown}=1;
+    unless( $heap->{shutdown} ) {
+        DEBUG && 
+            warn "$$: channel_close *****************************************\n";
+        $heap->{shutdown}=1;
+    }
     _close_channel( $heap );
 }
 

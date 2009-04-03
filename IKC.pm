@@ -1,9 +1,9 @@
 package POE::Component::IKC;
-# $Id: IKC.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: IKC.pm 358 2009-04-03 07:25:38Z fil $
 
 use strict;
 use vars qw( $VERSION );
-$VERSION="0.2002";
+$VERSION="0.2003";
 
 # Force CPAN to see this
 

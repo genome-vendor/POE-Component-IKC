@@ -1,5 +1,17 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2003 03 April 2009
+    - IKC::Channel->spawn returns session ID
+    - Only keep channel IDs in IKC::Responder
+
+    - Several changes to improve shutdown behaviour :
+        - Register channels with the IKC::Responder before they negociate
+        - Shutdown a IKC::Client when its Channel closes, so that IKC 
+            shutdown will also shutdown the channels
+        - Give Clients aliases to help debuging
+        - Shutdown IKC::Server when the last channel goes away and 
+            there's no wheel
+    
 0.2002 26 November 2008
     - Added call to $kernel->_data_sig_initialize, otherwise child processes
         will never exit

@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: Responder.pm 343 2009-03-20 07:51:40Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -49,7 +49,8 @@ sub spawn
                       _start _stop
                       request post call raw_message post2
                       remote_error
-                      register unregister default register_local
+                      register unregister register_local register_channel
+                      default
                       publish retract subscribe unsubscribe
                       published
                       monitor inform_monitors shutdown 
@@ -132,6 +133,16 @@ sub default
     my($heap, $name) = @_[HEAP, ARG0];
     $heap->{self}->default($name);
 }
+
+#----------------------------------------------------
+# Register a channel.  So we can tell it to shutdown before it finishes
+# negociating
+sub register_channel
+{
+    my($heap, $channel, $rid, $aliases) = @_[HEAP, SENDER, ARG0, ARG1];
+    $heap->{self}->register_channel($channel);
+}
+
 
 
 ##############################################################################
@@ -346,6 +357,7 @@ sub new
             rsvp=>{},
             kernel=>{},
             channel=>{},
+            channel_startup=>{},
             default=>{},
             monitors=>{},
             poe_kernel=>$kernel,
@@ -362,11 +374,23 @@ sub shutdown
         warn "$$: Some one wants us to go away... off we go\n";
     # kill our alias
     $kernel->alias_remove('IKC');
+
     # tell every channel to shutdown
     while(my($rid, $c)=each %{$self->{channel}}) {
-        DEBUG and warn "$$: Posting shutdown to $rid (id=$c)\n";
+        DEBUG and 
+                warn "$$: Posting shutdown to $rid (id=$c)\n";
         $kernel->post($c, 'shutdown');
     }
+    $self->{channel} = {};
+
+    # even the channels that haven't negociated yet
+    foreach my $c ( keys %{ $self->{channel_startup} } ) {
+        DEBUG and 
+                warn "$$: Posting shutdown to channel (id=$c)\n";
+        $kernel->post( $c, 'shutdown' );
+    }
+    $self->{channel_startup} = {};
+
     # tell monitors to shutdown
     $self->inform_monitors('*', 'shutdown');
     # kill pending subscription states
@@ -475,12 +499,16 @@ sub register
 
     my($kernel)=@{$self}{qw(poe_kernel)};
     
+    $channel = $channel->ID;
+    delete $self->{channel_startup}{ $channel };
+
     if($self->{channel}{$rid}) {
         warn "$$: Remote kernel '$rid' already exists\n";
         return;
     } 
     else {
-        DEBUG and warn "$$: Registered remote kernel '$rid'\n";
+        DEBUG and 
+            warn "$$: Registered remote kernel '$rid' (id=$channel)\n";
         $self->{channel}{$rid}=$channel;
         $self->{remote}{$rid}=[];       # list of proxy sessions
         $self->{alias}{$rid}=$aliases;  
@@ -546,6 +574,19 @@ sub register_local
 }
 
 #----------------------------------------------------
+# Register a starting channel
+sub register_channel
+{
+    my( $self, $channel ) = @_;
+    $channel = $channel->ID;
+    DEBUG and 
+        warn "$$: Registered channel (id=$channel)\n";
+    $self->{channel_startup}{ $channel } = 1;
+    return;
+}
+
+
+#----------------------------------------------------
 sub default
 {
     my($self, $name) = @_;
@@ -572,6 +613,7 @@ sub unregister
     my($self, $channel, $rid, $aliases)=@_;
     my($kernel)=@{$self}{qw(poe_kernel)};
     return unless $rid;
+    $channel = $channel->ID;
 
     unless($aliases) {
         unless($self->{channel}{$rid}) {    # unregister one alias only

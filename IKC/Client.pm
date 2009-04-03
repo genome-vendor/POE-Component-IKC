@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: Client.pm 358 2009-04-03 07:25:38Z fil $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -75,18 +75,18 @@ sub create_ikc_client
     }
     $parms{serializers}=\@keep;
 
-    POE::Session->create( 
+    return POE::Session->create( 
             package_states => [ $parms{package} =>
-                                          [qw(_start _stop error connected)]],
+                                [qw(_start _stop _child error shutdown connected)]],
             args => [\%parms]
-        );
+        )->ID;
 }
 
 sub spawn
 {
     my($package, %params)=@_;
     $params{package}=$package;
-    create_ikc_client(%params);
+    return create_ikc_client(%params);
 }
 
 sub _package_exists
@@ -129,6 +129,8 @@ sub _start {
     $heap->{on_connect}=$parms->{on_connect};
     $heap->{on_error}=$parms->{on_error};
     $heap->{name}=$parms->{name};
+    $heap->{alias} = "IKC Client $heap->{name}";
+    $kernel->alias_set( $heap->{alias} );
     $heap->{subscribe}=$parms->{subscribe};
     $heap->{aliases}=$parms->{aliases};
     $heap->{serializers}=$parms->{serializers};
@@ -172,8 +174,8 @@ sub connected
     DEBUG and warn "Client connected\n"; 
 
 
-                        # give the connection to a channel
-    create_ikc_channel($handle, 
+                        # give the connection to a Channel
+    $heap->{channel} = create_ikc_channel($handle, 
                         @{$heap}{qw(name on_connect subscribe
                                     remote_name unix aliases serializers)});
     delete @{$heap}{qw(name on_connect subscribe remote_name wheel aliases
@@ -181,9 +183,34 @@ sub connected
     
 }
 
+sub shutdown
+{
+    my ($heap, $kernel) = @_[HEAP, KERNEL];
+    DEBUG and 
+        warn "$heap Client shutdown";
+    if( $heap->{channel} ) {
+        $kernel->call( delete $heap->{channel} => 'shutdown' );
+    }
+    if( $heap->{alias} ) {
+        $kernel->alias_remove( delete $heap->{alias} );
+    }
+}
+
 sub _stop
 {
-#    warn "$_[HEAP] client _stop\n";
+    DEBUG and warn "$_[HEAP] client _stop\n";
+}
+
+sub _child
+{
+    my( $heap, $reason, $child ) = @_[ HEAP, ARG0, ARG1 ];
+    $child = $child->ID;
+    DEBUG and warn "$heap $reason #$child";
+    return unless defined $heap->{channel};
+    if( $child eq $heap->{channel} and $reason eq 'lose' ) {
+        delete $heap->{channel};
+        $poe_kernel->yield( 'shutdown' );
+    }
 }
 
 1;
