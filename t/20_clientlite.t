@@ -2,42 +2,32 @@
 
 use strict;
 
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl test.pl'
-
-######################### We start with some black magic to print on failure.
-
-# Change 1..1 below to 1..last_test_to_print .
-# (It may become useful if the test is moved to ./t subdirectory.)
-
 # sub POE::Kernel::ASSERT_EVENTS { 1 }
 # sub POE::Kernel::TRACE_REFCNT { 1 }
 
-BEGIN { $| = 1; print "1..11\n"; }
+use Test::More tests => 11;
 use POE::Component::IKC::ClientLite;
 use POE::Component::IKC::Server;
 use POE::Component::IKC::Responder;
 use Data::Dumper;
 
 use POE qw(Kernel);
-my $loaded = 1;
-END {print "not ok 1\n" unless $loaded;}
-print "ok 1\n";
+
+pass( 'loaded' );
 
 ######################### End of black magic.
 
-my $Q=2;
 sub DEBUG () {0}
 
 # try finding a freezer
 my $p=
     POE::Component::IKC::ClientLite::_default_freezer();
-ok(2, !!$p);
+ok($p, "Default freezer");
 
 # try loading freezer
 my($f, $t)=
     POE::Component::IKC::ClientLite::_get_freezer('POE::Component::IKC::Freezer');
-ok(3, ($f and $t));
+ok(($f and $t), "Loaded a freezer");
 
 POE::Component::IKC::Responder->spawn;
 
@@ -52,30 +42,9 @@ Test::Server->spawn();
 
 $poe_kernel->run();
 
-ok(11);
+pass( "Sane shutdown" );
 
 
-
-#############################################
-sub ok
-{
-    my($n, $ok, $reason)=@_;
-    my $not=(not defined($ok) or $ok) ? '' : "not ";
-    if(defined $n) {
-        if($n < $Q) {
-            $not="not ";
-        } elsif($n > $Q) {
-            foreach my $i ($Q .. ($n-1)) {
-                print "not ok $i\n";
-            }
-            $Q=$n;
-        }
-    }
-    my $skip='';
-    $skip=" # skipped: $reason" if $reason;
-    print "${not}ok $Q$skip\n";
-    $Q++;
-}
 
 ############################################################################
 package Test::Server;
@@ -84,7 +53,6 @@ use Config;
 use POE::Session;
 
 BEGIN {
-    *ok=\&::ok;
     *DEBUG=\&::DEBUG;
 }
 
@@ -98,6 +66,7 @@ sub spawn
             $package=>[qw(_start _stop fetchQ add_1 add_n here
                         lite_register lite_unregister
                         shutdown do_child timeout
+                        sig_child
                         )],
         ],
     );
@@ -110,7 +79,7 @@ sub _start
 #    die Denter "KERNEL is ". 0+KERNEL, \@_;
     my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
     DEBUG and warn "Test server: _start\n";
-    ok(4);
+    ::pass('_start');
 
     $kernel->alias_set('test');
     $kernel->call(IKC=>'publish',  test=>[qw(fetchQ add_1 here)]);
@@ -131,6 +100,7 @@ sub do_child
     my $pid=fork();
     die "Can't fork: $!\n" unless defined $pid;
     if($pid) {          # parent
+        $kernel->sig_child( $pid => 'sig_child' );
         $kernel->delay(timeout=>60);
         return;
     }
@@ -139,13 +109,17 @@ sub do_child
     die "Couldn't exec $exec: $!\n";
 }
 
+sub sig_child
+{
+    return;
+}
 
 ###########################################################
 sub _stop
 {
     my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
     DEBUG and warn "Test server: _stop\n";
-    ok(10);
+    ::pass("_stop");
 }
 
 
@@ -157,7 +131,7 @@ sub lite_register
                             )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
     DEBUG and warn "Test server: lite_register\n";
     return if $count++;
-    ok(5, ($name eq 'LiteClient'));
+    ::is($name, 'LiteClient', 'LiteClient');
 }
 
 ###########################################################
@@ -168,7 +142,7 @@ sub lite_unregister
     DEBUG and warn "Test server: lite_unregister count=$count\n";
     return if $count==1;
 
-    ok(9, ($name eq 'LiteClient'));
+    ::is($name, 'LiteClient', 'LiteClient');
     $kernel->delay('timeout');          # set in do_child
     $kernel->post(IKC=>'shutdown');
 }
@@ -187,7 +161,8 @@ sub shutdown
 sub fetchQ
 {
     my($kernel, $heap)=@_[KERNEL, HEAP];
-    return ok(6)+1;
+    ::pass( 'fetchQ' );
+    return 6+1;
 }
 
 ###########################################################
@@ -197,7 +172,8 @@ sub add_1
     DEBUG and warn "$$: add_1";
     my($n, $pb)=@$args;
     DEBUG and warn "$$: foo $n";
-    ok($n);     # 7
+    
+    ::is($n, 7, "Good call");     # 7
     $kernel->yield('add_n', $n, 1, $pb);
 }
 
@@ -214,7 +190,7 @@ sub here
 {
     my($kernel, $n)=@_[KERNEL, ARG0];
     DEBUG and warn "$$: here $n";
-    ok($n);     # 8
+    ::is( $n, 8, "Nice" );     # 8
 }
 
 ###########################################################

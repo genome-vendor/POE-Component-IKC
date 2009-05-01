@@ -1,13 +1,13 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 361 2009-04-03 07:37:32Z fil $
+# $Id: Server.pm 468 2009-05-01 17:01:00Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2009 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.2001';
+$VERSION = '0.2101';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -45,17 +45,18 @@ BEGIN {
 # This is just a convenient way to create servers.  To be useful in
 # multi-server situations, it probably should accept a bind address
 # and port.
-sub create_ikc_server
+sub spawn
 {
-    my(%params)=@_;
-    $params{package}||=__PACKAGE__;
+    my($package, %params)=@_;
+    $params{package} ||= $package;
 
     unless($params{unix}) {
         $params{ip}||='0.0.0.0';            # INET_ANY
         $params{port}||=603;                # POE! (almost :)
     }
 
-    create_ikc_responder();
+    # Make sure one is available
+    POE::Component::IKC::Responder->spawn();
     POE::Session->create(
                     package_states => [ 
                         $params{package} =>
@@ -70,64 +71,29 @@ sub create_ikc_server
                   );
 }
 
-sub spawn
+sub create_ikc_server
 {
-    my($package, %params)=@_;
-    $params{package}=$package;
-    create_ikc_server(%params);
+    my( %params )=@_;
+    $params{package} ||= __PACKAGE__;
+    $params{package}->spawn( %params );
 }
 
 #----------------------------------------------------
-# NOTE : THIS IS POORLY BEHAVED CODE
 sub _select_define
 {
     my($heap, $on)=@_;
+    return unless $heap->{wheel};
     $on||=0;
 
     DEBUG and 
         warn "_select_define (on=$on)";
 
-    if($POE::VERSION >= 0.24) {
-        if($on) {
-            $heap->{wheel}->resume_accept
-        }
-        else {
-            $heap->{wheel}->pause_accept
-        }
-        return;
-    }
-
-    # NOTE : FOR OLDER VERSIONS OF POE
-    # THIS IS POORLY BEHAVED CODE
-    my $state;
-    my $err="possible redefinition of POE internals";
-    $err="failure to bind to port" if $POE::VERSION <= 0.1005;
-
     if($on) {
-        if(ref $heap->{wheel} eq 'HASH') {
-            $state=$heap->{wheel}->{'state_accept'};
-        } else {
-            $state=$heap->{wheel}->[5];
-        }
-
-        unless(defined $state) {
-            die "No 'state_accept' in $heap->{wheel}, $err.\n";
-        }
-    }
-
-    my $c=0;
-    if(ref $heap->{wheel} eq 'HASH') {
-        foreach my $hndl (qw(socket_handle)) {
-            next unless defined $heap->{wheel}->{$hndl};
-            $poe_kernel->select_read($heap->{wheel}->{$hndl}, $state);
-            $c++;
-        }
+        $heap->{wheel}->resume_accept
     }
     else {
-        $poe_kernel->select_read($heap->{wheel}->[0], $state);
-        $c++;
+        $heap->{wheel}->pause_accept
     }
-    die "No socket_handle in $heap->{wheel}, $err.\n" unless $c;
     return;
 }
 
@@ -142,6 +108,35 @@ sub _delete_wheel
     return;
 }
 
+#----------------------------------------------------
+#
+sub _concurrency_up
+{
+    my( $heap ) = @_;
+    $heap->{concur_connections}++;
+    DEBUG and 
+        warn "$$: $heap->{concur_connections} concurrent connections";
+    return unless $heap->{concurrency} > 0;
+    if( $heap->{concur_connections} >= $heap->{concurrency} ) {
+        DEBUG and 
+            warn "$$: Blocking more concurrency";
+        _select_define( $heap, 0 );
+    }
+}
+
+sub _concurrency_down
+{
+    my( $heap ) = @_;
+    $heap->{concur_connections}--;
+    DEBUG and 
+        warn "$$: $heap->{concur_connections} concurrent connections";
+    return unless $heap->{concurrency} > 0;
+    if( $heap->{concur_connections} < $heap->{concurrency} ) {
+        DEBUG and 
+            warn "$$: Unblocking concurrency";
+        _select_define( $heap, 1 );
+    }
+}
 
 #----------------------------------------------------
 # Delete all delays
@@ -197,6 +192,8 @@ sub _start
     $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
     $heap->{kernel_aliases}=$params->{aliases};
+    $heap->{concurrency}=$params->{concurrency} || 0;
+    $heap->{connections} = 0;
 
     # set up local names for kernel
     my @names=($heap->{name});
@@ -256,14 +253,28 @@ sub _start
 sub _child
 {
     my( $heap, $kernel, $op, $child, $ret ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
-    return unless $op eq 'lose';
+    $ret ||= '';
     DEBUG and 
-        warn "$$: _child op=$op child=$child ret=$ret wheel=$heap->{wheel}";
+        warn "$$: _child op=$op child=$child ret=$ret";
+    if( $op eq 'lose' ) {
+        $heap->{child_sessions}--;
+        if( $heap->{child_sessions} > 0 ) {
+            DEBUG and warn "$$: still have a child session";
+            return;
+        }
+        _concurrency_down($heap);
+    }
+    else {
+        $heap->{child_sessions}++;
+        return;
+    }
     unless( $heap->{wheel} ) {  # no wheel == GAME OVER
-        DEBUG and 
+        # DEBUG and 
             warn "$$: }}}}}}}}}}}}}}} Game over\n";
-        # TODO: Using shutdown is a stop-gap measure.  Maybe the daemon
+        # XXX: Using shutdown is a stop-gap measure.  Maybe the daemon
         # wants to stay alive even if IKC was shutdown...
+        # XXX: more to the point, maybe there are still requests that are
+        # hanging around !
         $kernel->call( IKC => 'shutdown' );
     }
 }
@@ -478,7 +489,7 @@ sub shutdown
     _delete_delays();               # get it OVER with
 
     # -GC
-    $kernel->alias_remove("IKC Server $heap->{wheel_address}");
+    # $kernel->alias_remove("IKC Server $heap->{wheel_address}");
     $heap->{'die'}=1;               # prevent race conditions
 }
 
@@ -531,7 +542,6 @@ sub accept
     }
     if($heap->{children} and not $heap->{'is a child'}) {
         warn "$$: Parent process received a connection: THIS SUCKS\n";
-        _select_define($heap, 0);
         return;
     }
 
@@ -541,23 +551,22 @@ sub accept
     POE::Component::IKC::Channel->spawn(
                 handle=>$handle, name=>$heap->{name},
                 unix=>$heap->{unix}, aliases=>[@{$heap->{kernel_aliases}||[]}]);
+
+    _concurrency_up($heap);
         
     return unless $heap->{children};
 
-    if ($heap->{'is a child'}) {
-
-        if (--$heap->{connections} < 1) {
-            DEBUG and 
+    if (--$heap->{connections} < 1) {
+        # DEBUG and 
                 warn "$$: {{{{{{{{{{{{{{{ Game over\n";
-            $kernel->delay('waste_time');
-            _delete_wheel( $heap );
+        $kernel->delay('waste_time');
+        _delete_wheel( $heap );
+        $::TRACE_REFCNT = 1;
 
-        } else {
-            # DEBUG and 
-                warn "$$: $heap->{connections} connections left\n";
-        }
     } else {
-        warn "$$: Master client got a connect!  this sucks!\n";
+        # DEBUG and 
+                warn "$$: $heap->{connections} connections left\n";
+        _select_define($heap, 0);
     }
 }
 
@@ -922,7 +931,7 @@ POE::Component::IKC::Server - POE Inter-kernel Communication server
 
     use POE;
     use POE::Component::IKC::Server;
-    create_ikc_server(
+    POE::Component::IKC::Server->spawn(
         ip=>$ip, 
         port=>$port,
         name=>'Server',);
@@ -940,8 +949,14 @@ identical.
 
 =head2 C<create_ikc_server>
 
-This function initiates all the work of building the IKC server.  
-Parameters are :
+Syntatic sugar for POE::Component::IKC::Server->spawn.
+
+=head1 CLASS METHODS
+
+=head2 C<spawn>
+
+This methods initiates all the work of building the IKC server. Parameters
+are :
 
 =over 3
 
@@ -993,6 +1008,15 @@ Number of connections a child will accept before exiting.  Currently,
 connections are serviced concurrently, because there's no way to know when
 we have finished a request.  Defaults to 1 (ie, one connection per
 child).
+
+=item C<concurrency>
+
+Number of simultaneous connected clients allowed.
+Defaults to 0 (unlimited).  
+
+Note that this is per-IKC::Server instance;  if you have several ways of
+connecting to a give IKC server (for example, both an TCP/IP port and unix
+pipe), they will not share the conncurrent connection count.
 
 =back
 

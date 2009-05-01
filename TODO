@@ -4,16 +4,6 @@
 
 - Other IKC then just INET and UNIX domain sockets (IPC, Pipes, FIFOs)
 
-- Kernel and Session  naming needs to be resolved.
-    $poe_kernel->{name} should return a unique name.
-    Globaly, universaly unique kernel names will be hard.
-
-    $_[(SESSION|SENDER)] should return a unique name within a kernel.
-    (We can't use strinified reference, because perl re-uses them too 
-    quickly.)
-
-    Sloved with $kernel->ID and $session->ID.... I hope
-
 - Global event naming scheme
     This will also make documentation and discussions easier.
 

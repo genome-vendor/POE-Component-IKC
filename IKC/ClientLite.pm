@@ -1,10 +1,10 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: ClientLite.pm 468 2009-05-01 17:01:00Z fil $
 # By Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2009 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.2001';
+$VERSION = '0.2101';
 
 sub DEBUG { 0 }
 
@@ -506,7 +506,7 @@ sub _get_freezer
 
 1;
 
-__DATA__
+__END__
 
 
 =head1 NAME

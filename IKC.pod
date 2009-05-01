@@ -226,7 +226,7 @@ Philip Gwyn <perl-ikc at pied.nu>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+Copyright 1999-2009 by Philip Gwyn.  All rights reserved.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

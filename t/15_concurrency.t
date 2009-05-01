@@ -1,9 +1,8 @@
 #!/usr/bin/perl -w
 use strict;
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl test.pl'
+use warnings;
 
-use Test::More tests => 25;
+use Test::More tests => 30;
 
 sub POE::Kernel::ASSERT_EVENTS { 1 }
 
@@ -14,41 +13,31 @@ use POE qw(Kernel);
 
 pass( "loaded" );
 
-######################### End of black magic.
 sub DEBUG () { 0 }
-
-my $Q=2;
-my %OK;
-my $WIN32=1 if $^O eq 'MSWin32';
 
 
 DEBUG and print "Starting servers...\n";
-unless($WIN32) {
-    POE::Component::IKC::Server->spawn(
-        unix=>($ENV{TMPDIR}||$ENV{TEMP}||'/tmp').'/IKC-test.pl',
-        name=>'Unix',
-    );
-}
-
 POE::Component::IKC::Server->spawn(
-        port=>1338,
-        name=>'Inet',
-        aliases=>[qw(Ikc)],
+        port        => 1338,
+        name        => 'Inet',
+        aliases     => [qw(Ikc)],
+        concurrency => 2
     );
 
-Test::Server->spawn();
+Test::Runner->spawn();
 
 $poe_kernel->run();
 
 pass( "Sane shutdown" );
 
 ############################################################################
-package Test::Server;
+package Test::Runner;
 use strict;
 use Config;
 use POE::Session;
 
 BEGIN {
+    *ok=\&::ok;
     *DEBUG=\&::DEBUG;
 }
 
@@ -60,9 +49,7 @@ sub spawn
 #         args=>[$qref],
         package_states=>[
             $package=>[qw(_start _stop posted called method
-                        unix_register unix_unregister
                         inet_register inet_unregister
-                        ikc_register ikc_unregister
                         done shutdown do_child timeout
                         sig_child
                         )],
@@ -82,35 +69,10 @@ sub _start
     $kernel->alias_set('test');
     $kernel->call(IKC=>'publish',  test=>[qw(posted called method done)]);
 
-    my $published=$kernel->call(IKC=>'published', 'test');
-#    die Denter $published;
-    ::ok( (ref $published eq 'ARRAY' and @$published==4), "Published 4 events" );
-
-    $published=$kernel->call(IKC=>'published');
-    ::ok((ref $published eq 'HASH' and 2==keys %$published), "2 sessions published something");
-
-    unless($WIN32) {
-        $kernel->post(IKC=>'monitor', 'UnixClient'=>{
-            register=>'unix_register',
-            unregister=>'unix_unregister'
-        });
-    }
-    $kernel->post(IKC=>'monitor', 'InetClient'=>{
-            register=>'inet_register',
-            unregister=>'inet_unregister'
-        });
-    $kernel->post(IKC=>'monitor', 'IkcClient'=>{
-            register=>'ikc_register',
-            unregister=>'ikc_unregister'
-        });
     $kernel->post(IKC=>'monitor', '*'=>{shutdown=>'shutdown'});
 
-    unless($WIN32) {
-        $kernel->yield(do_child=>'unix');
-    } else {
-        SKIP: {
-            ::skip( "win32 doesn't have UNIX domain sockets", 6 );
-        }
+    # ::diag( "Launch 5 clients" );
+    foreach ( 1..5 ) {
         $kernel->yield(do_child=>'inet');
     }
 }
@@ -124,9 +86,13 @@ sub do_child
     if($pid) {          # parent
         $kernel->sig_child( $pid => 'sig_child' );
         $kernel->delay(timeout=>60);
+        $kernel->post(IKC=>'monitor', "\u$type${pid}Client"=>{
+            register=>'inet_register',
+            unregister=>'inet_unregister'
+        });
         return;
     }
-    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-client $type";
+    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-client $type$$";
     DEBUG and warn "Running $exec";
     exec $exec;
     die "Couldn't exec $exec: $!\n";
@@ -194,31 +160,18 @@ sub done
 
 
 ###########################################################
-sub unix_register
-{
-    my($kernel, $heap, $name, $alias, $is_alias, 
-                            )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
-    DEBUG and warn "Server: unix_register\n";
-    ::is($name, 'UnixClient', 'UnixClient');
-}
-
-###########################################################
-sub unix_unregister
-{
-    my($kernel, $heap, $name, $alias, $is_alias, 
-                            )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
-    DEBUG and warn "Server: unix_unregister\n";
-    ::is($name, 'UnixClient', 'UnixClient');
-    $kernel->yield(do_child=>'inet');
-}
-
-###########################################################
 sub inet_register
 {
     my($kernel, $heap, $name, $alias, $is_alias, 
                             )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
+
+    $heap->{connected}++;
+    $heap->{connections}++;
+    ok( ($heap->{connected} <= 2), 
+            "Max 2 concurrent connections ($heap->{connected})" );
+        
     DEBUG and warn "Server: inet_register\n";
-    ::is($name, 'InetClient', 'InetClient');
+    # ::is($name, 'InetClient');
 }
 
 ###########################################################
@@ -226,31 +179,13 @@ sub inet_unregister
 {
     my($kernel, $heap, $name, $alias, $is_alias, 
                             )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
+    $heap->{connected}--;
     DEBUG and warn "Server: inet_unregister ($name)\n";
-    ::is($name, 'InetClient', 'InetClient');
+    # ::is($name, 'InetClient');
     $kernel->delay('timeout');
-    $kernel->yield(do_child=>"ikc");
-}
-
-
-###########################################################
-sub ikc_register
-{
-    my($kernel, $heap, $name, $alias, $is_alias, 
-                            )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
-    DEBUG and warn "Server: ikc_register\n";
-    ::is( $name, 'IkcClient' , 'IkcClient' );
-}
-
-###########################################################
-sub ikc_unregister
-{
-    my($kernel, $heap, $name, $alias, $is_alias, 
-                            )=@_[KERNEL, HEAP, ARG0, ARG1, ARG2];
-    DEBUG and warn "Server: ikc_unregister ($name)\n";
-    ::is($name, 'IkcClient', 'IkcClient');
-    $kernel->delay('timeout');
-    $kernel->post(IKC=>'shutdown');
+    if( $heap->{connections} == 5 ) {
+        $kernel->post( IKC=>"shutdown");
+    }
 }
 
 

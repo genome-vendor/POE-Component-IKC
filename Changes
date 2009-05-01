@@ -1,5 +1,20 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2101 01 May 2009
+    - IKC::Channel stops work during shutdown
+            Fixes http://rt.cpan.org/Public/Bug/Display.html?id=44104
+            Thank you, acferen [...] yahoo.com
+
+0.2100 01 May 2009
+    - LICENSE in Makefile.PL
+    - Added concurrency to IKC::Server
+    - Moved all tests to Test::More 
+    - Added POD tests
+    - Updated copyright year
+    - Cleanup dist
+    - Removed checks for ancient versions of POE
+    - Require POE 1.000
+
 0.2003 03 April 2009
     - IKC::Channel->spawn returns session ID
     - Only keep channel IDs in IKC::Responder

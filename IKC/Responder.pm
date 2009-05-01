@@ -1,13 +1,13 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm 343 2009-03-20 07:51:40Z fil $
+# $Id: Responder.pm 468 2009-05-01 17:01:00Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2009 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.2001';
+$VERSION = '0.2101';
 
 sub DEBUG { 0 }
 
@@ -1469,7 +1469,7 @@ POE::Component::IKC::Responder - POE IKC state handler
 
 =head1 DESCRIPTION
 
-This module implements an POE IKC state handling.  The responder handles
+This module implements POE IKC state handling.  The responder handles
 posting states to foreign kernels and calling states in the local kernel at
 the request of foreign kernels.
 

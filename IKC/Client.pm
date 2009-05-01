@@ -1,13 +1,13 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm 358 2009-04-03 07:25:38Z fil $
+# $Id: Client.pm 468 2009-05-01 17:01:00Z fil $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
 # Turned into a module by Philp Gwyn <fil@pied.nu>
 #
-# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
+# Copyright 1999-2009 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.2001';
+$VERSION = '0.2101';
 
 sub DEBUG { 0 }
 
@@ -225,7 +225,7 @@ POE::Component::IKC::Client - POE Inter-Kernel Communication client
 
     use POE;
     use POE::Component::IKC::Client;
-    create_ikc_client(
+    POE::Component::IKC::Client->spawn(
         ip=>$ip, 
         port=>$port,
         name=>"Client$$",
@@ -245,7 +245,14 @@ identical.
 
 =head2 create_ikc_client
 
-This function initiates all the work of connecting to an IKC server.
+Syntatic sugar for POE::Component::IKC::Client->spawn.
+
+
+=head1 CLASS METHODS
+
+=head2 spawn
+
+This methods initiates all the work of connecting to an IKC server.
 Parameters are :
 
 =over 4

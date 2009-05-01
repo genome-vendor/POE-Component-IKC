@@ -1,9 +1,9 @@
-# $Id: Proxy.pm 322 2008-01-16 16:40:45Z fil $
+# $Id: Proxy.pm 468 2009-05-01 17:01:00Z fil $
 package POE::Component::IKC::Proxy;
 
 ##############################################################################
-# $Id: Proxy.pm 322 2008-01-16 16:40:45Z fil $
-# Copyright 1999-2008 Philip Gwyn.  All rights reserved.
+# $Id: Proxy.pm 468 2009-05-01 17:01:00Z fil $
+# Copyright 1999-2009 Philip Gwyn.  All rights reserved.
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 #
@@ -21,7 +21,7 @@ use POE::Component::IKC::Specifier;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_proxy);
-$VERSION = '0.2001';
+$VERSION = '0.2101';
 
 sub DEBUG { 0 }
 
