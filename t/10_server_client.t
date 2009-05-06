@@ -3,7 +3,7 @@ use strict;
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-use Test::More tests => 25;
+use Test::More tests => 26;
 
 sub POE::Kernel::ASSERT_EVENTS { 1 }
 
@@ -30,13 +30,15 @@ unless($WIN32) {
     );
 }
 
-POE::Component::IKC::Server->spawn(
-        port=>1338,
+my $port = POE::Component::IKC::Server->spawn(
+        port=>0,
         name=>'Inet',
         aliases=>[qw(Ikc)],
     );
 
-Test::Server->spawn();
+ok( $port, "Got the port number" ) or die;
+
+Test::Server->spawn( $port );
 
 $poe_kernel->run();
 
@@ -55,9 +57,9 @@ BEGIN {
 ###########################################################
 sub spawn
 {
-    my($package)=@_;
+    my($package, $port )=@_;
     POE::Session->create(
-#         args=>[$qref],
+        args=>[$port],
         package_states=>[
             $package=>[qw(_start _stop posted called method
                         unix_register unix_unregister
@@ -73,14 +75,14 @@ sub spawn
 ###########################################################
 sub _start
 {
-#    use Data::Denter;
-#    die Denter "KERNEL is ". 0+KERNEL, \@_;
-    my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
+    my($kernel, $heap, $port)=@_[KERNEL, HEAP, ARG0];
     DEBUG and warn "Server: _start\n";
     ::pass( '_start' );
 
     $kernel->alias_set('test');
     $kernel->call(IKC=>'publish',  test=>[qw(posted called method done)]);
+
+    $heap->{port} = $port;
 
     my $published=$kernel->call(IKC=>'published', 'test');
 #    die Denter $published;
@@ -118,7 +120,7 @@ sub _start
 ###########################################################
 sub do_child
 {
-    my($kernel, $type)=@_[KERNEL, ARG0];
+    my($kernel, $heap, $type)=@_[KERNEL, HEAP, ARG0];
     my $pid=fork();
     die "Can't fork: $!\n" unless defined $pid;
     if($pid) {          # parent
@@ -126,7 +128,7 @@ sub do_child
         $kernel->delay(timeout=>60);
         return;
     }
-    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-client $type";
+    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-client $type $heap->{port}";
     DEBUG and warn "Running $exec";
     exec $exec;
     die "Couldn't exec $exec: $!\n";

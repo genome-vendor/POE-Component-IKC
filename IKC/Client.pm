@@ -1,7 +1,7 @@
 package POE::Component::IKC::Client;
 
 ############################################################
-# $Id: Client.pm 468 2009-05-01 17:01:00Z fil $
+# $Id: Client.pm 473 2009-05-06 17:24:12Z fil $
 # Based on refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -24,7 +24,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.2101';
+$VERSION = '0.2102';
 
 sub DEBUG { 0 }
 
@@ -288,9 +288,6 @@ Coderef that is called when the connection has been made to the foreign
 kernel.  Normaly, you would use this to start the sessions that post events
 to foreign kernels.  
 
-DEPRECATED.  Please use the IKC/monitor stuff.  See
-L<POE::Component::IKC::Responder>.  
-
 Note, also, that the coderef will be executed from within an IKC channel
 session, NOT within your own session.  This means that things like
 $poe_kernel->delay_set() won't do what you think they should.
@@ -306,6 +303,9 @@ this connection.
         ....
         );
 
+However, IKC/monitor provides a more powerful mechanism for detecting
+connections.  See L<POE::Component::IKC::Responder>.  
+
 
 =item C<on_error>
 
@@ -314,11 +314,12 @@ restart the connection attempt.  Parameters are C<$operation, $errnum and
 $errstr>, which correspond to POE::Wheel::SocketFactory's FailureEvent, 
 which q.v.
 
-DEPRECATED.  Please use the IKC/monitor stuff.  See
-L<POE::Component::IKC::Responder>.  Note, also, that the coderef will be
-executed from within an IKC session, NOT within your own session.  This
-means that things like $poe_kernel->delay_set() won't do what you think they
-should.
+However, IKC/monitor provides a more powerful mechanism for detecting
+errors.  See L<POE::Component::IKC::Responder>.  
+
+Note, also, that the coderef will be executed from within an IKC session,
+NOT within your own session.  This means that things like
+$poe_kernel->delay_set() won't do what you think they should.
 
 
 =item C<subscribe>

@@ -31,14 +31,14 @@ ok(($f and $t), "Loaded a freezer");
 
 POE::Component::IKC::Responder->spawn;
 
-POE::Component::IKC::Server->spawn(
-        port=>1337,
+my $port = POE::Component::IKC::Server->spawn(
+        port=>0,
         name=>'Inet',
         aliases=>[qw(Ikc)],
     );
 
 DEBUG and print "Test server $$\n";
-Test::Server->spawn();
+Test::Server->spawn( $port );
 
 $poe_kernel->run();
 
@@ -59,9 +59,9 @@ BEGIN {
 ###########################################################
 sub spawn
 {
-    my($package)=@_;
+    my($package, $port)=@_;
     POE::Session->create(
-#         args=>[$qref],
+        args=>[$port],
         package_states=>[
             $package=>[qw(_start _stop fetchQ add_1 add_n here
                         lite_register lite_unregister
@@ -75,9 +75,7 @@ sub spawn
 ###########################################################
 sub _start
 {
-#    use Data::Denter;
-#    die Denter "KERNEL is ". 0+KERNEL, \@_;
-    my($kernel, $heap)=@_[KERNEL, HEAP, ARG0];
+    my($kernel, $heap, $port)=@_[KERNEL, HEAP, ARG0];
     DEBUG and warn "Test server: _start\n";
     ::pass('_start');
 
@@ -90,13 +88,13 @@ sub _start
         });
     $kernel->post(IKC=>'monitor', '*'=>{shutdown=>'shutdown'});
 
-    $kernel->delay(do_child=>1, 'lite');
+    $kernel->delay(do_child=>1, 'lite', $port);
 }
 
 ###########################################################
 sub do_child
 {
-    my($kernel, $type)=@_[KERNEL, ARG0];
+    my($kernel, $type, $port)=@_[KERNEL, ARG0, ARG1];
     my $pid=fork();
     die "Can't fork: $!\n" unless defined $pid;
     if($pid) {          # parent
@@ -104,7 +102,7 @@ sub do_child
         $kernel->delay(timeout=>60);
         return;
     }
-    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-$type";
+    my $exec="$Config{perlpath} -I./blib/arch -I./blib/lib -I$Config{archlib} -I$Config{privlib} test-$type $port";
     exec $exec;
     die "Couldn't exec $exec: $!\n";
 }

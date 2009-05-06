@@ -4,9 +4,11 @@ use strict;
 sub DEBUG () {0}
 use POE::Component::IKC::ClientLite;
 
+my $port = $ARGV[0] || 1337;
+
 DEBUG and warn "$$: Connect\n";
 my $poe=create_ikc_client(
-        port=>1337,
+        port=>$port,
         name=>'LiteClient',
     );
 

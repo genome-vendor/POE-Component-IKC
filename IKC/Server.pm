@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 468 2009-05-01 17:01:00Z fil $
+# $Id: Server.pm 474 2009-05-06 17:49:50Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.2101';
+$VERSION = '0.2102';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -52,12 +52,13 @@ sub spawn
 
     unless($params{unix}) {
         $params{ip}||='0.0.0.0';            # INET_ANY
-        $params{port}||=603;                # POE! (almost :)
+        $params{port} = 603                 # POE! (almost :)
+                    unless defined $params{port};
     }
 
     # Make sure one is available
     POE::Component::IKC::Responder->spawn();
-    POE::Session->create(
+    my $session = POE::Session->create(
                     package_states => [ 
                         $params{package} =>
                         [qw(
@@ -69,13 +70,15 @@ sub spawn
                     ],
                     args=>[\%params],
                   );
+    my $heap = $session->get_heap;
+    return $heap->{wheel_port};
 }
 
 sub create_ikc_server
 {
     my( %params )=@_;
     $params{package} ||= __PACKAGE__;
-    $params{package}->spawn( %params );
+    return $params{package}->spawn( %params );
 }
 
 #----------------------------------------------------
@@ -159,6 +162,8 @@ sub _start
 {
     my($heap, $params, $kernel) = @_[HEAP, ARG0, KERNEL];
 
+    my $ret;
+
     # monitor for shutdown events.
     # this is the best way to get IKC::Responder to tell us about the
     # shutdown
@@ -179,21 +184,31 @@ sub _start
     }
     else {
         $alias="$params->{ip}:$params->{port}";
-        $wheel_p{BindPort}= $params->{port};
+        $wheel_p{BindPort} = $params->{port};
         $wheel_p{BindAddress}= $params->{ip};
     }
     DEBUG && warn "$$: Server starting $alias.\n";
 
-    # +GC
-    $kernel->alias_set("IKC Server $alias");
 
-                                        # create a socket factory
-    $heap->{wheel_address}=$alias;
-    $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
     $heap->{name}=$params->{name};
     $heap->{kernel_aliases}=$params->{aliases};
     $heap->{concurrency}=$params->{concurrency} || 0;
+
+                                        # create a socket factory
+    $heap->{wheel} = new POE::Wheel::SocketFactory (%wheel_p);
+    if( $heap->{wheel} and not $params->{unix} and not $params->{port} ) {
+        $heap->{wheel_port} = 
+                $ret = ( sockaddr_in( $heap->{wheel}->getsockname() ) )[0];
+        $alias="$params->{ip}:$ret";
+        DEBUG && 
+                warn "$$: Server listening on $alias.\n";
+    }
+    $heap->{wheel_address}=$alias;
+
     $heap->{connections} = 0;
+
+    # +GC
+    $kernel->alias_set("IKC Server $alias");
 
     # set up local names for kernel
     my @names=($heap->{name});
@@ -207,7 +222,7 @@ sub _start
 
     $kernel->post(IKC=>'register_local', \@names);
 
-    return unless $params->{processes};
+    return $ret unless $params->{processes};
 
     # Delete the SocketFactory's read select in the parent
     # We don't ever want the parent to accept a connection
@@ -246,7 +261,7 @@ sub _start
         };
         $kernel->yield('babysit');
     }
-    return;
+    return $ret;
 }
 
 #------------------------------------------------------------------------------
@@ -955,8 +970,8 @@ Syntatic sugar for POE::Component::IKC::Server->spawn.
 
 =head2 C<spawn>
 
-This methods initiates all the work of building the IKC server. Parameters
-are :
+This methods initiates all the work of building the IKC server. 
+Parameters are :
 
 =over 3
 
@@ -967,7 +982,14 @@ Address to listen on.  Can be a doted-quad ('127.0.0.1') or a host name
 
 =item C<port>
 
-Port to listen on.  Can be numeric (80) or a service ('http').
+Port to listen on.  Can be numeric (80) or a service ('http').  If
+undefined, will default to 603.  
+If you set the port to 0, a random port will be chosen and C<spawn> will
+return the port number.
+
+    my $port = POE::Component::IKC::Server->spawn( port => 0 );
+    warn "Listeing on port $port";
+
 
 =item C<unix>
 
@@ -1019,6 +1041,10 @@ connecting to a give IKC server (for example, both an TCP/IP port and unix
 pipe), they will not share the conncurrent connection count.
 
 =back
+
+C<POE::Component::IKC::Server::spawn> returns C<undef()>, unless you specify
+a L</port>=0, in which case, C<spawn> returns the port that was chosen.
+
 
 =head1 EVENTS
 

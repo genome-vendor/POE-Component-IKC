@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm 472 2009-05-01 18:28:08Z fil $
+# $Id: Channel.pm 473 2009-05-06 17:24:12Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.2101';
+$VERSION = '0.2102';
 
 sub DEBUG { 0 }
 
@@ -175,7 +175,14 @@ sub channel_start
     }
 
     _set_phase($kernel, $heap, '000');
-    $kernel->call( 'IKC', 'register_channel' );
+    my $ikc = eval { $kernel->alias_resolve( 'IKC' ) };
+    if( $ikc ) {
+        $kernel->call( $ikc, 'register_channel' );
+    }
+    else {
+        warn __PACKAGE__, " has no IKC responder.";
+        $kernel->yield( 'shutdown' );
+    }
     return 'channel';
 }
 
@@ -532,8 +539,9 @@ sub _channel_unregister
 ------------------------------------------
 WARN
         # 2005/06 Tell IKC we closed the connection
-        unless( $heap->{shutdown} ) {
-            $poe_kernel->call('IKC', 'unregister', $heap->{remote_ID});
+        my $ikc = eval { $poe_kernel->alias_resolve( 'IKC' ) };
+        if( $ikc ) {
+            $poe_kernel->call( $ikc, 'unregister', $heap->{remote_ID});
         }
         delete $heap->{remote_ID};
     }
@@ -672,7 +680,7 @@ sub channel_flushed
 # Local kernel thinks it's time to close down the channel
 sub channel_close
 {
-    my ($heap)=$_[HEAP];
+    my ($heap, $sender)=@_[HEAP, SENDER];
     unless( $heap->{shutdown} ) {
         DEBUG && 
             warn "$$: channel_close *****************************************\n";

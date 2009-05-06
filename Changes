@@ -1,5 +1,13 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2102 06 May 2009
+    - IKC::Channel uses presence of IKC alias, not {shutdown}, to unregister
+    - Added a _child to shut up POE::Session
+    - Changed the DEPRECATED messages that fluster everybody into
+        pointers to IKC/monitor.  I'm not going to remove on_connect nor
+        on_error.
+    - Allow IKC::Server port=0
+
 0.2101 01 May 2009
     - IKC::Channel stops work during shutdown
             Fixes http://rt.cpan.org/Public/Bug/Display.html?id=44104

@@ -5,7 +5,8 @@ use lib qw(blib/lib blib/arch);
 
 # BEGIN {sub POE::Kernel::TRACE_GARBAGE () { 1 }}
 
-use POE qw(Session);
+use POE;
+use POE::Session;
 use POE::Component::IKC::Server;
 use POE::Component::IKC::Specifier;
 
@@ -16,11 +17,12 @@ create_ikc_server(
     unix=>($ENV{TMPDIR}||$ENV{TEMP}||'/tmp').'/userver',    
     name=>'shut-server');       
 
-POE::Session->new
-(
-    _start=>\&time_start,
-    goaway=>\&goaway,
-    _stop=>\&time_stop,
+POE::Session->create(
+    inline_states => {
+            _start=>\&time_start,
+            goaway=>\&goaway,
+            _stop=>\&time_stop,
+        }
 );
 
 print "Running server for 60 seconds at most...\n";

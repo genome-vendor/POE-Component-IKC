@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm 468 2009-05-01 17:01:00Z fil $
+# $Id: Responder.pm 473 2009-05-06 17:24:12Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.2101';
+$VERSION = '0.2102';
 
 sub DEBUG { 0 }
 
@@ -46,7 +46,7 @@ sub spawn
     POE::Session->create( 
         package_states => [
             $package, [qw(
-                      _start _stop
+                      _start _stop _child
                       request post call raw_message post2
                       remote_error
                       register unregister register_local register_channel
@@ -83,6 +83,13 @@ sub _stop
     # use YAML qw(Dump);
     # use Data::Denter;
     # warn Denter $poe_kernel;
+}
+
+sub _child
+{
+    my( $heap, $reason, $session, $ret ) = @_[ HEAP, ARG0, ARG1, ARG2 ];
+    DEBUG and 
+        warn "$$: $_[HEAP] responder _child $reason, $session\n";
 }
 
 #----------------------------------------------------
@@ -1307,8 +1314,10 @@ sub inform_monitors
     croak "$$: No kernel in $_[1]!" unless $rid;
 
     my $real=1 if $self->{channel}{$rid};
-    DEBUGM and 
-        warn "$$: $rid is", ($real ? '' : "n't"), " real\n";
+    DEBUGM and do {
+            warn "$$: inform $event $rid";
+            warn "$$: $rid is", ($real ? '' : "n't"), " real\n";
+        };
 
     # got to be a better way of doing this...
     my @todo=($rid);
