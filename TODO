@@ -2,7 +2,7 @@
     - socket errors
     - remote_subscribe/remote_unsubscribe
 
-- Other IKC then just INET and UNIX domain sockets (IPC, Pipes, FIFOs)
+- Other IPC then just INET and UNIX domain sockets (IPC, Pipes, FIFOs)
 
 - Global event naming scheme
     This will also make documentation and discussions easier.

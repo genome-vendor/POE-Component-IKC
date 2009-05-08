@@ -1,7 +1,7 @@
 package POE::Component::IKC::Server;
 
 ############################################################
-# $Id: Server.pm 474 2009-05-06 17:49:50Z fil $
+# $Id: Server.pm 494 2009-05-08 18:36:12Z fil $
 # Based on refserver.perl and preforkedserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ require Exporter;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_server);
-$VERSION = '0.2102';
+$VERSION = '0.2200';
 
 sub DEBUG { 0 }
 sub DEBUG_USR2 { 1 }
@@ -123,9 +123,11 @@ sub _concurrency_up
     if( $heap->{concur_connections} >= $heap->{concurrency} ) {
         DEBUG and 
             warn "$$: Blocking more concurrency";
+        $heap->{blocked} = 1;
         _select_define( $heap, 0 );
     }
 }
+
 
 sub _concurrency_down
 {
@@ -134,7 +136,8 @@ sub _concurrency_down
     DEBUG and 
         warn "$$: $heap->{concur_connections} concurrent connections";
     return unless $heap->{concurrency} > 0;
-    if( $heap->{concur_connections} < $heap->{concurrency} ) {
+    if( $heap->{concur_connections} < $heap->{concurrency} 
+        and delete $heap->{blocked} ) {
         DEBUG and 
             warn "$$: Unblocking concurrency";
         _select_define( $heap, 1 );
@@ -267,15 +270,23 @@ sub _start
 #------------------------------------------------------------------------------
 sub _child
 {
-    my( $heap, $kernel, $op, $child, $ret ) = @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
+    my( $heap, $kernel, $op, $child, $ret ) = 
+                                @_[ HEAP, KERNEL, ARG0, ARG1, ARG2 ];
     $ret ||= '';
     DEBUG and 
         warn "$$: _child op=$op child=$child ret=$ret";
+    unless( $ret eq "channel-$child" ) {
+        if( $op eq 'create' ) {
+            DEBUG and 
+                warn "$$: Detatching child session $child";
+            $kernel->detach_child( $child );
+        }
+        return;
+    }
     if( $op eq 'lose' ) {
         $heap->{child_sessions}--;
         if( $heap->{child_sessions} > 0 ) {
             DEBUG and warn "$$: still have a child session";
-            return;
         }
         _concurrency_down($heap);
     }
@@ -1066,7 +1077,7 @@ Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+Copyright 1999-2009 by Philip Gwyn.  All rights reserved.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

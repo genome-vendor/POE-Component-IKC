@@ -1,7 +1,7 @@
 package POE::Component::IKC::Channel;
 
 ############################################################
-# $Id: Channel.pm 473 2009-05-06 17:24:12Z fil $
+# $Id: Channel.pm 494 2009-05-08 18:36:12Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -27,7 +27,7 @@ use Data::Dumper;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_channel);
-$VERSION = '0.2102';
+$VERSION = '0.2200';
 
 sub DEBUG { 0 }
 
@@ -74,7 +74,7 @@ sub spawn
                     client_002 => \&client_002,
                     client_003 => \&client_003,
                     'sig_INT'  => \&sig_INT
-               }, 
+               },
                args => [\%params]
            )->ID;
 }
@@ -183,7 +183,7 @@ sub channel_start
         warn __PACKAGE__, " has no IKC responder.";
         $kernel->yield( 'shutdown' );
     }
-    return 'channel';
+    return "channel-$session";
 }
 
 #----------------------------------------------------
@@ -600,7 +600,7 @@ sub channel_stop
     DEBUG && 
         warn "$$: *** Channel will shut down.\n";
     _close_channel($heap);
-    return "channel";
+    return "channel-$_[SESSION]";
 }
 
 ###########################################################################
@@ -826,7 +826,7 @@ Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+Copyright 1999-2009 by Philip Gwyn.  All rights reserved.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

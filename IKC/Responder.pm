@@ -1,7 +1,7 @@
 package POE::Component::IKC::Responder;
 
 ############################################################
-# $Id: Responder.pm 473 2009-05-06 17:24:12Z fil $
+# $Id: Responder.pm 495 2009-05-08 19:46:42Z fil $
 # Based on tests/refserver.perl
 # Contributed by Artur Bergman <artur@vogon-solutions.com>
 # Revised for 0.06 by Rocco Caputo <troc@netrus.net>
@@ -26,7 +26,7 @@ use Scalar::Util qw(reftype);
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_responder $ikc);
-$VERSION = '0.2102';
+$VERSION = '0.2200';
 
 sub DEBUG { 0 }
 
@@ -469,7 +469,7 @@ sub request
         my $session=$kernel->alias_resolve($to->{session});
         die "Unknown session '$to->{session}'\n" unless $session;
         # warn "No FROM" unless $request->{from};
-        _thunked_post($request->{rsvp}, [$session, $to->{state}, @$args],
+        _thunked_post($request->{rsvp}, ["$session", $to->{state}, @$args],
                           $request->{from}, $request->{wantarray});
     };
 
@@ -696,15 +696,15 @@ sub send_msg
         die "Bad state ", Dumper $msg;
     }
     unless($to) {
-        warn "Bad or missing 'event' parameter '$msg->{event}' to poe://IKC/$e\n";
+        warn "Bad or missing 'event' parameter '$msg->{event}' to IKC/$e\n";
         return;
     }
     unless($to->{session}) {
-        warn "Need a session name in poe://IKC/$e\n";
+        warn "Need a session name for IKC/$e\n", Dumper $to;
         return;
     }
     unless($to->{state})   {
-        warn "Need a state name in poe://IKC/$e\n", Dumper $to;
+        warn "Need a state name for IKC/$e\n", Dumper $to;
         return;
     }
 
@@ -723,9 +723,10 @@ sub send_msg
         # if you want
         $self->{poe_kernel}->can('alias_list')) 
     {
-        my $sid=$sender->ID if ref $sender;
+        my $sid=$sender;
+        $sid = $sender->ID if ref $sender;
         foreach my $a ($self->{poe_kernel}->alias_list($sender)) {
-            $sid.=" ($a)";
+            $sid .= " ($a)";
             if($self->{'local'}{$a}) {  # SENDER published something
                 $msg->{from}={  kernel=>$self->{poe_kernel}->ID,
                                 session=>$a,
@@ -937,19 +938,19 @@ sub call
     $rsvp="poe://$rsvp" if $rsvp and not ref $rsvp and $rsvp!~/^poe:/;
 
     unless($rsvp) {
-        warn "$$: Missing 'rsvp' parameter in poe://IKC/call\n";
+        warn "$$: Missing 'rsvp' parameter in poe:IKC/call\n";
         return;
     }
     my $t=specifier_parse($rsvp);
     unless($t) {
-        warn "$$: Bad 'rsvp' parameter '$rsvp' in poe://IKC/call\n";
+        warn "$$: Bad 'rsvp' parameter '$rsvp' in poe:IKC/call\n";
         return;
     }
     $rsvp=$t;
     unless($rsvp->{state})
     {
         DEBUG and warn Dumper $rsvp;
-        warn "$$: rsvp state not set in poe://IKC/call\n";
+        warn "$$: rsvp state not set in poe:IKC/call\n";
         return;
     }
 
@@ -1368,10 +1369,12 @@ sub inform_monitors
 # valid to the posted state.  However, garbage collection becomes a problem
 # If we are to allow the poste session to "hold on to" $_[SENDER]. 
 #
-# Having the Responder save all Thunks until the related foreign connection
-# disapears would be wasteful.  Or, POE could use soft-refs to track
-# active sessions and the thunk would "kill" itself in _stop.  This
-# would force POE to require 5.005, however.
+# On the first request, a thunk is created.  It is kept alive with an alias.
+# On the next request, we check to see if the extref_count is zero.  If it
+# is, we reuse the same request.  If not, we create a new thunk and continue
+# using that.  What's more, we tell the thunk that it is active, so it should
+# clear its alias.  This way, when the user code decrements the extref_count
+# back to zero, the thunk they reserved can be cleared.
 #
 
 # Export thunk the quick way.
@@ -1379,70 +1382,136 @@ sub inform_monitors
 package POE::Component::IKC::Responder::Thunk;
 
 use strict;
-use POE qw(Session);
+
+use Carp;
 use Data::Dumper;
+use POE::API::Peek;
+use POE::Component::IKC;
+use POE::Session;
+use POE;
 
 sub DEBUG { 0 }
+sub DEBUG2 { 0 }
 
+#----------------------------------------------------
 {
-    my $name=__PACKAGE__.'00000000';
-    $name=~s/\W//g;
+    my $NAME=__PACKAGE__.'00000000';
+    $NAME=~s/\W+//g;
+    my $current_thunk;
+    my $API;
+
+    #------------------------------
     sub thunk
     {
-        # my($rsvp, $args, $from, $wantarray)=@_;
-        POE::Session->create( 
-                package_states => [__PACKAGE__, [qw(_start _stop _default)]],
-                args => [$name++, @_]
+        # my($rsvp, $call, $from, $wantarray)=@_;
+        unless( __active_thunk() ) {
+            __create_thunk();
+        }
+
+        # we use call to make sure no other call to us could
+        # happen between _start and __thunk
+        $poe_kernel->call( $current_thunk => '__thunk', @_ );
+    }
+
+    #------------------------------
+    sub __create_thunk
+    {
+        my $thunk = 
+            POE::Session->create( 
+                package_states => [ __PACKAGE__, 
+                                    [ qw(_start _stop _default
+                                        __thunk __active
+                                    ) ]
+                                  ],
+                args => [++$NAME]
             );
+
+        $current_thunk = "$thunk";
+    }
+
+    #------------------------------
+    sub __active_thunk 
+    {
+        return unless $current_thunk;
+        $API ||= POE::API::Peek->new;
+        if( $API->resolve_session_to_id( $current_thunk ) ) {
+            if( 0==$API->get_session_extref_count( $current_thunk ) ) {
+                DEBUG and warn "$$: $NAME reuse\n";
+                return 1;
+            }
+            $poe_kernel->post( $current_thunk => '__active' );
+        }
+        undef( $current_thunk );
+        return;
     }
 }
 
+#----------------------------------------------------
 sub _start
 {
-    my($kernel, $heap,          $name, $rsvp,  $args, $from, $wantarray)=
-                @_[KERNEL, HEAP, ARG0, ARG1,    ARG2,  ARG3,  ARG4];
-    $heap->{from}=$from;
-    $heap->{name}=$name;
+    my($kernel, $heap, $name )= @_[KERNEL, HEAP, ARG0];
+    $heap->{alias} = $heap->{name} = $name;
+    DEBUG and warn "$$: $name create\n";
+    $kernel->alias_set( $heap->{alias} );
+}
+
+#----------------------------------------------------
+sub __active
+{
+    my($kernel, $heap) = @_[KERNEL, HEAP];
+    DEBUG and warn "$$: $heap->{name} active\n";
+    $kernel->alias_set( delete $heap->{alias} ) if $heap->{alias};
+    return 1;
+}
+
+#----------------------------------------------------
+sub _stop
+{
+    DEBUG and 
+        warn "$$: $_[HEAP]->{name} delete\n";
+}
+
+#----------------------------------------------------
+sub __thunk
+{
+    my($kernel, $heap,          $rsvp, $call, $from, $wantarray)=
+                @_[KERNEL, HEAP, ARG0, ARG1,  ARG2,  ARG3];
+    $heap->{from} = $from;
     # warn "no FROM" unless $from;
 
-    DEBUG and warn "$name created\n";
-
     if($rsvp) {                         # foreign session wants returned value
+        DEBUG2 and warn "Calling ", Dumper $call;
 
-        DEBUG and do { warn "Wants an array" if $wantarray};
+        DEBUG2 and do { warn "Wants an array" if $wantarray};
 
         my(@ret, $yes);
         if($wantarray) {
-            @ret=$kernel->call(@$args);
+            @ret=$kernel->call(@$call);
             $yes = 0<@ret;
         } else {
-            $ret[0]=$kernel->call(@$args);
+            $ret[0]=$kernel->call(@$call);
             $yes = defined $ret[0];
         }
         if($yes) {
-            DEBUG and do {
+            DEBUG2 and do {
                 local $"=', ';
                 warn "Posted response '@ret' to ", Dumper $rsvp;
             };
             # This is the POSTBACK
             $POE::Component::IKC::Responder::ikc->send_msg(
                     {params=>($wantarray ? \@ret : $ret[0]), event=>$rsvp},
-                    $args->[0]);
+                    $call->[0]);
         }
     }
     else {
-        DEBUG and do {
-            warn "Posting ", Dumper $args;
-        };
-        $kernel->post(@$args);
+        # 2009/05 - use ->call() so that {from} can't be modified
+        # before refcount_increment is called
+        DEBUG2 and warn "Posting ", Dumper $call;
+        $kernel->call(@$call);
     }
 }
 
-sub _stop
-{
-    DEBUG and warn "$_[HEAP]->{name} delete\n";
-}
-
+#----------------------------------------------------
 sub _default
 {
     my($kernel, $heap, $sender, $state, $args)=
@@ -1454,9 +1523,19 @@ sub _default
         return;
     }
 
-    $POE::Component::IKC::Responder::ikc->send_msg(
+    if( not $heap->{from}{state} ) {
+        my $event = { %{$heap->{from}} };
+        $event->{state} = $state;
+
+        $POE::Component::IKC::Responder::ikc->send_msg(
+                {params=>$args, event=>$event}, $sender
+              );
+    }
+    else {
+        $POE::Component::IKC::Responder::ikc->send_msg(
                 {params=>[$state, $args], event=>$heap->{from}}, $sender
               );
+    }
 }
 
 1;
@@ -1529,7 +1608,7 @@ This logs an state with a hypothetical logger.
 
 =back
 
-See the L</Note about SENDER> below.
+See the L</PROXY SENDER> below.
 
 
 =head2 C<call>
@@ -1590,7 +1669,7 @@ The C<rsvp> state does not need to be published.  IKC keeps track of the
 rsvp state and will allow the foreign kernel to post to it.
 
 
-See the L<Note about SENDER> below.
+See the L<PROXY SENDER> below.
 
 
 
@@ -1993,29 +2072,42 @@ this for you.
 
 Deprecated, use L</spawn>.
 
-=head1 L<Note about SENDER>
 
-An attempt is made to provide a sane SENDER param to called or posted
-states.  If the calling session has published some states, SENDER is usable
-during the called state, but not afterwards.  Don't try keeping a reference
-to this session.  This makes callbacks a tad easier.
 
-Furthur, if you IKC/call a remote state, the SENDER during the callback will
-point back to the remote session.
+=head1 PROXY SENDER
+
+Event handlers invoked via IKC will have a proxy SENDER session. You may use
+it to post back to the remote session.   
+
+    $poe_kernel->post( $_[SENDER], 'response', @args );
+
+Normally this proxy session is available during the invocation of the event
+handler.  You may claim it for longer by setting an external reference:
+
+    $heap->{remote} = $_[SENDER]->ID;
+    $poe_kernel->refcount_increment( $heap->{remote}, 'MINE' );
+
+POE::Component::IKC will detect this and create a new proxy session for future
+calls.  It will then be UP TO YOU to free the session:
+
+    $poe_kernel->refcount_decrement( $heap->{remote}, 'MINE' );
+
+Note that you will have to publish any events that will be posted back.
+
 
 =head1 BUGS
 
-Sending session references and coderefs to a foreign kernel is a bad idea :)  At some
-point it would be desirable to recurse through the paramerters and and turn
-any session references into state specifiers.
+Sending session references and coderefs to a foreign kernel is a bad idea.
+At some point it would be desirable to recurse through the paramerters and
+and turn any session references into state specifiers.
 
-C<rsvp> state in call is a bit problematic.  IKC allows it to be posted to
-once, but doesn't check to see if the foreign kernel is the right one.
+The C<rsvp> state in call is a bit problematic.  IKC allows it to be posted
+to once, but doesn't check to see if the foreign kernel is the right one.
 
 C<retract> does not currently tell foreign kernels that have subscribed to a
-session/state that it has been retracted.
+session/state about the retraction.
 
-C<call()ing> a state in a proxied foreign session doesn't work, for obvious
+C<call()>ing a state in a proxied foreign session doesn't work, for obvious
 reasons.
 
 
@@ -2026,7 +2118,7 @@ Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+Copyright 1999-2009 by Philip Gwyn.  All rights reserved.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

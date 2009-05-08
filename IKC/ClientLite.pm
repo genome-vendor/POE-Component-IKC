@@ -1,7 +1,7 @@
 package POE::Component::IKC::ClientLite;
 
 ############################################################
-# $Id: ClientLite.pm 473 2009-05-06 17:24:12Z fil $
+# $Id: ClientLite.pm 495 2009-05-08 19:46:42Z fil $
 # By Philp Gwyn <fil@pied.nu>
 #
 # Copyright 1999-2009 Philip Gwyn.  All rights reserved.
@@ -25,7 +25,7 @@ use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(create_ikc_client);
-$VERSION = '0.2102';
+$VERSION = '0.2200';
 
 sub DEBUG { 0 }
 
@@ -281,10 +281,46 @@ sub post_respond
 }
 
 #----------------------------------------------------
+sub responded
+{
+    my( $self, $state ) = @_;
+
+    my $wantarray = wantarray;
+    my $rsvp = { kernel=>$self->{name}, 
+                 session=>'IKCLite',
+                 state=>$state
+               };
+    my @ret = eval {
+            DEBUG && print "Waiting for response...\n";
+            return $self->_response($rsvp, $wantarray);
+        };
+    if($@) {
+        $self->{error}=$error=$@;
+        return;
+    }
+    return @ret if wantarray;
+    return $ret[0];
+}
+
+
+
+#----------------------------------------------------
+sub _from
+{
+    my( $self ) = @_;
+    return { kernel => $self->{name},
+             session => 'IKCLite',
+             # state   => 'IKC:lite'
+           }
+}
+
+#----------------------------------------------------
 sub _try_send
 {
     my($self, $msg)=@_;
     return unless $self->{remote}{connected} or $self->connect();
+
+    $msg->{from} ||= $self->_from;
 
     my $ret=$self->_send_msg($msg);
     DEBUG && print "Sending message...\n";
@@ -422,6 +458,7 @@ sub _response
                 next;
             }
 
+            DEBUG and print "wantarray=$wantarray\n";
             if( $wantarray ) {
                 DEBUG and print "Wanted an array\n";
                 return @{$msg->{params}} if ref $msg->{params} eq 'ARRAY';
@@ -435,6 +472,7 @@ sub _response
     confess "Timed out waiting for response ", specifier_name( $rsvp );
 #    die "Timed out waiting for response ", specifier_name( $rsvp ), "\n",
 #        "start=$start stopon=$stopon now=", time;
+    return;
 }
 
 
@@ -609,7 +647,7 @@ undef() if we couldn't connect or reconnect to remote kernel.
 
 =head2 post_respond
 
-    my $back=$poe->post_respond($specifier, $data);
+    my $ret=$poe->post_respond($specifier, $data);
 
 Posts the event specified by C<$specifier> to the remote kernel.  C<$data>
 is any parameters you want to send along with the event.  It waits until
@@ -636,9 +674,20 @@ C<$data> followed by a specifier that should be used to post back.
         $kernel->post(IKC=>'post', $heap->{rsvp}, $return);
     }
 
+=head2 responded
+
+    my $ret = $poe->responded( $state );
+    my @ret = $poe->responded( $state );
+
+Waits for $state from the remote kernel.  C<$state> must be a simple state
+name.  Any requests from the remotre kernel for other states are rejected.
+A remote handler would respond by using the 
+L<proxy sender|POE::Component::IKC::Responder/"PROXY SENDER">.
+
+
 =head2 call
 
-    my $back=$poe->call($specifier, $data);
+    my $ret=$poe->call($specifier, $data);
 
 This is the bad way to get information back from the a remote event. 
 Follows the expected semantics from standard POE.  It works better then
@@ -666,7 +715,7 @@ Philip Gwyn, <perl-ikc at pied.nu>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999-2008 by Philip Gwyn.  All rights reserved.
+Copyright 1999-2009 by Philip Gwyn.  All rights reserved.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

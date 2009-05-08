@@ -1,14 +1,17 @@
 --- #YAML:1.0
 name:                POE-Component-IKC
-version:             0.2102
+version:             0.2200
 abstract:            Inter-Kernel Communication for POE
 license:             perl
 generated_by:        ExtUtils::MakeMaker version 6.36
 distribution_type:   module
 requires:     
     POE:                           1
+    POE::API::Peek:                1
     Scalar::Util:                  1
-    Test::More:                    0.8
+    Test::More:                    0.6
 meta-spec:
     url:     http://module-build.sourceforge.net/META-spec-v1.2.html
     version: 1.2
+author:
+    - Philip Gwyn

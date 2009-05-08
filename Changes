@@ -1,5 +1,12 @@
 Revision history for Perl extension POE::Component::IKC.
 
+0.2200 08 May 2009
+    - Better concurrency handling
+    - We now have a reusable thunk session
+    - Added test cases for above
+    - Reworked t/30_concurrency.t Seems it was failing on Win32
+    - Added ClientLite->responded()
+
 0.2102 06 May 2009
     - IKC::Channel uses presence of IKC alias, not {shutdown}, to unregister
     - Added a _child to shut up POE::Session
