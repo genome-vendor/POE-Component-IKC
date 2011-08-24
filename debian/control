@@ -1,0 +1,16 @@
+Source: libpoe-component-ikc-perl
+Section: perl
+Priority: optional
+Build-Depends: debhelper (>= 7)
+Build-Depends-Indep: perl, libpoe-perl (>= 0.32)
+Maintainer: Randy Hancock <rhancock@>
+Standards-Version: 3.8.3
+Homepage: http://search.cpan.org/dist/POE-Component-IKC/
+
+Package: libpoe-component-ikc-perl
+Architecture: all
+Depends: ${perl:Depends}, ${misc:Depends}, libpoe-perl (>= 0.32)
+Description: Inter-Kernel Communication for POE
+ Inter-Kernel Communication for POE
+ .
+ This description was automagically extracted from the module by dh-make-perl.
